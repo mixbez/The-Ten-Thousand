@@ -97,11 +97,12 @@ async def cmd_monthly(message: Message, state: FSMContext):
             return
 
         from bot.fsm.states import AssessmentStates
-        await state.set_state(AssessmentStates.ask_sleep)
+        await state.set_state(AssessmentStates.ask_sleep_consistency)
         await message.answer(
-            "Время для ежемесячного аудита здоровья!\n\n"
-            "Переоценим твой базовый уровень.\n\n"
-            "*Сон:* Сколько часов ты спал в среднем на прошлой неделе?",
+            "Время для ежемесячного аудита!\n\n"
+            "Переоценим твои паттерны.\n\n"
+            "*Сон:* Сколько часов ты спишь и насколько это стабильно?\n"
+            "(например: стабильно 7-8 часов ИЛИ от 4 до 12 в зависимости от дня)",
             parse_mode="Markdown",
         )
 

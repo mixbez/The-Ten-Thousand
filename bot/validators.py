@@ -11,30 +11,25 @@ class SanitizerOutput(BaseModel):
     reason: Optional[str] = None
 
 
+class NextInteraction(BaseModel):
+    type: Literal["NUDGE", "REFLECTION", "ASSESSMENT"]
+    content: str = Field(min_length=5, max_length=1000)
+    schedule_tag: Literal["MORNING", "EVENING", "IMMEDIATE"]
+
+
+class LongevityBrainOutput(BaseModel):
+    update_user_state: Optional[dict] = None
+    message_to_user: str = Field(min_length=5, max_length=2000)
+    next_interaction: Optional[NextInteraction] = None
+
+
+# Backward-compat alias used in scheduler fallback
 class ClaudeNudge(BaseModel):
     nudge_text: str = Field(min_length=10, max_length=500)
-    category: Literal["sleep", "nutrition", "movement", "stress"]
+    category: Literal["sleep", "nutrition", "movement", "stress", "energy"]
     delivery_time: Literal["MORNING", "EVENING"]
     difficulty: Literal["easy", "medium", "hard"] = "easy"
     score_delta: int = Field(default=0, ge=-10, le=10)
-
-
-class ClaudeReflection(BaseModel):
-    question_text: str = Field(min_length=10, max_length=300)
-    category: Literal["sleep", "nutrition", "movement", "stress"]
-
-
-class ClaudeAssessmentResponse(BaseModel):
-    acknowledgment: str = Field(min_length=5, max_length=200)
-    next_question: Optional[str] = None
-    is_complete: bool = False
-
-
-class ClaireBrainOutput(BaseModel):
-    message: str = Field(min_length=5, max_length=1000)
-    next_interaction: Optional[ClaudeNudge] = None
-    updated_scores: Optional[dict] = None
-    phase_transition: Optional[int] = None
 
 
 class AssessmentRawAnswers(BaseModel):

@@ -166,13 +166,12 @@ async def handle_commitment(message: Message, state: FSMContext):
         user.fsm_phase = 1
         await session.commit()
 
-    await state.set_state(None)
+    from bot.fsm.states import AssessmentStates
+    await state.set_state(AssessmentStates.ask_sleep_consistency)
     await message.answer(
-        "Отлично! Теперь составим твой базовый профиль здоровья.\n\n"
-        "*Оценка здоровья* — 4 коротких вопроса.\n\n"
-        "*Сон:* Сколько часов ты спишь в среднем за ночь?",
+        "Отлично! Теперь составим твой профиль здоровья.\n\n"
+        "*Оценка* — 6 вопросов о паттернах, а не просто цифрах.\n\n"
+        "*Сон:* Сколько часов ты спишь и насколько это стабильно?\n"
+        "(например: стабильно 7-8 часов ИЛИ от 4 до 12 в зависимости от дня)",
         parse_mode="Markdown",
     )
-
-    from bot.fsm.states import AssessmentStates
-    await state.set_state(AssessmentStates.ask_sleep)
