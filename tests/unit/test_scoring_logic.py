@@ -1,7 +1,8 @@
 import pytest
 from bot.scoring_logic import (
     score_sleep, score_nutrition, score_movement, score_stress,
-    calculate_overall_score, score_assessment,
+    score_sleep_consistency, score_morning_energy, score_brain_fog, score_sedentary,
+    calculate_overall_score, score_assessment, score_deep_assessment,
 )
 
 
@@ -90,11 +91,11 @@ class TestScoreStress:
 
 class TestCalculateOverallScore:
     def test_perfect_scores(self):
-        scores = {"sleep": 100, "nutrition": 100, "movement": 100, "stress": 100}
+        scores = {"sleep": 100, "energy": 100, "nutrition": 100, "movement": 100, "stress": 100}
         assert calculate_overall_score(scores) == 100.0
 
     def test_zero_scores(self):
-        scores = {"sleep": 0, "nutrition": 0, "movement": 0, "stress": 0}
+        scores = {"sleep": 0, "energy": 0, "nutrition": 0, "movement": 0, "stress": 0}
         assert calculate_overall_score(scores) == 0.0
 
     def test_missing_category(self):
@@ -102,9 +103,9 @@ class TestCalculateOverallScore:
             calculate_overall_score({"sleep": 100, "nutrition": 100})
 
     def test_weighted_average(self):
-        scores = {"sleep": 100, "nutrition": 0, "movement": 0, "stress": 0}
+        scores = {"sleep": 100, "energy": 0, "nutrition": 0, "movement": 0, "stress": 0}
         result = calculate_overall_score(scores)
-        assert result == 30.0  # sleep weight is 0.30
+        assert result == 25.0  # sleep weight is 0.25
 
 
 class TestScoreAssessment:
@@ -116,3 +117,98 @@ class TestScoreAssessment:
         assert "stress" in result
         assert "overall" in result
         assert 0 <= result["overall"] <= 100
+
+
+class TestScoreSleepConsistency:
+    def test_stable_good_sleep(self):
+        assert score_sleep_consistency(7.5, 0.5) == 100
+
+    def test_good_avg_high_variance(self):
+        score = score_sleep_consistency(7.5, 5.0)
+        assert score == 70  # 100 - 30 penalty
+
+    def test_medium_variance(self):
+        score = score_sleep_consistency(7.5, 2.5)
+        assert score == 85  # 100 - 15
+
+    def test_small_variance(self):
+        score = score_sleep_consistency(7.5, 1.5)
+        assert score == 95  # 100 - 5
+
+    def test_negative_hours_raises(self):
+        with pytest.raises(ValueError):
+            score_sleep_consistency(-1, 0)
+
+    def test_negative_variance_raises(self):
+        with pytest.raises(ValueError):
+            score_sleep_consistency(7, -1)
+
+
+class TestScoreMorningEnergy:
+    def test_max_energy(self):
+        assert score_morning_energy(10) == 100
+
+    def test_min_energy(self):
+        assert score_morning_energy(1) == 10
+
+    def test_mid_energy(self):
+        assert score_morning_energy(5) == 50
+
+    def test_out_of_range_low(self):
+        with pytest.raises(ValueError):
+            score_morning_energy(0)
+
+    def test_out_of_range_high(self):
+        with pytest.raises(ValueError):
+            score_morning_energy(11)
+
+
+class TestScoreBrainFog:
+    def test_never(self):
+        assert score_brain_fog("Никогда") == 100
+
+    def test_sometimes(self):
+        assert score_brain_fog("Иногда") == 55
+
+    def test_daily(self):
+        assert score_brain_fog("Каждый день") == 10
+
+    def test_english_never(self):
+        assert score_brain_fog("never") == 100
+
+    def test_unknown_defaults_to_sometimes(self):
+        assert score_brain_fog("не знаю") == 55
+
+
+class TestScoreSedentary:
+    def test_very_active(self):
+        assert score_sedentary(1) == 100
+
+    def test_moderate(self):
+        assert score_sedentary(5) == 55
+
+    def test_desk_job(self):
+        assert score_sedentary(8) == 30
+
+    def test_extreme(self):
+        assert score_sedentary(12) == 5
+
+    def test_negative_raises(self):
+        with pytest.raises(ValueError):
+            score_sedentary(-1)
+
+
+class TestScoreDeepAssessment:
+    def test_full_deep_assessment(self):
+        result = score_deep_assessment(7.5, 0.5, 8, "Никогда", 3.0, 2)
+        assert "sleep" in result
+        assert "energy" in result
+        assert "nutrition" in result
+        assert "movement" in result
+        assert "stress" in result
+        assert "overall" in result
+        assert 0 <= result["overall"] <= 100
+
+    def test_worst_case(self):
+        result = score_deep_assessment(3.0, 8.0, 1, "Каждый день", 12.0, 10)
+        assert result["overall"] < 30

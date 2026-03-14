@@ -17,7 +17,8 @@ class User(Base):
     personality = Column(String(50), nullable=True)  # 'disciplined' or 'compassionate'
     coaching_style = Column(String(50), nullable=True)
     motivation = Column(String(200), nullable=True)
-    health_scores = Column(JSONB, default=dict)  # {sleep: 0-100, nutrition: 0-100, movement: 0-100, stress: 0-100}
+    health_scores = Column(JSONB, default=dict)  # {sleep, energy, nutrition, movement, stress, overall}
+    assessment_data = Column(JSONB, default=dict)  # raw deep assessment answers
     timezone_offset = Column(Integer, default=0)  # UTC offset in hours
     timezone_name = Column(String(50), default="UTC")
     fsm_state = Column(String(100), nullable=True)

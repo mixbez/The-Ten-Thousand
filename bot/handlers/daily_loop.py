@@ -43,11 +43,11 @@ async def handle_reflection_response(message: Message, state: FSMContext):
             return
 
         user_state = {
-            "guid": str(user.id),
-            "phase": user.fsm_phase,
-            "personality": user.personality,
-            "coaching_style": user.coaching_style,
+            "name": "",
+            "coaching_style": user.coaching_style or "balanced",
+            "motivation": user.motivation or "",
             "health_scores": user.health_scores or {},
+            "assessment_data": user.assessment_data or {},
             "timezone_name": user.timezone_name,
         }
 
@@ -55,11 +55,11 @@ async def handle_reflection_response(message: Message, state: FSMContext):
             user_state=user_state,
             sanitized_input=sanitized.cleaned_text,
             history=[],
-            instruction="User has responded to their evening reflection. Acknowledge, update scores if needed, and prepare tomorrow's morning nudge.",
+            instruction="Пользователь ответил на вечерний вопрос рефлексии. Прими ответ, при необходимости обнови показатели и подготовь утреннее задание на завтра.",
         )
 
-        if brain_output.updated_scores:
-            user.health_scores = {**user.health_scores, **brain_output.updated_scores}
+        if brain_output.update_user_state and brain_output.update_user_state.get("scores"):
+            user.health_scores = {**(user.health_scores or {}), **brain_output.update_user_state["scores"]}
 
         user.block_count = 0
         await session.commit()
@@ -69,12 +69,12 @@ async def handle_reflection_response(message: Message, state: FSMContext):
             from bot.main import bot
             await schedule_nudge(
                 user_id=str(user.id),
-                delivery_time=brain_output.next_interaction.delivery_time,
+                delivery_time=brain_output.next_interaction.schedule_tag,
                 timezone_name=user.timezone_name,
                 bot=bot,
-                nudge_text=brain_output.next_interaction.nudge_text,
-                category=brain_output.next_interaction.category,
+                nudge_text=brain_output.next_interaction.content,
+                category="general",
             )
 
     await state.clear()
-    await message.answer(brain_output.message)
+    await message.answer(brain_output.message_to_user)

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 from bot.validators import (
-    SanitizerOutput, ClaudeNudge, ClaireBrainOutput, AssessmentRawAnswers
+    SanitizerOutput, ClaudeNudge, LongevityBrainOutput, NextInteraction, AssessmentRawAnswers
 )
 
 
@@ -22,7 +22,7 @@ class TestSanitizerOutput:
 class TestClaudeNudge:
     def test_valid_nudge(self):
         nudge = ClaudeNudge(
-            nudge_text="Drink a glass of water before breakfast.",
+            nudge_text="Выпей стакан воды перед завтраком.",
             category="nutrition",
             delivery_time="MORNING",
         )
@@ -31,14 +31,39 @@ class TestClaudeNudge:
     def test_invalid_category(self):
         with pytest.raises(ValidationError):
             ClaudeNudge(
-                nudge_text="Do something",
+                nudge_text="Сделай что-нибудь",
                 category="invalid",
                 delivery_time="MORNING",
             )
 
     def test_short_nudge_text(self):
         with pytest.raises(ValidationError):
-            ClaudeNudge(nudge_text="Hi", category="sleep", delivery_time="MORNING")
+            ClaudeNudge(nudge_text="Привет", category="sleep", delivery_time="MORNING")
+
+
+class TestLongevityBrainOutput:
+    def test_valid_output(self):
+        obj = LongevityBrainOutput(
+            message_to_user="Твой главный стрессор блокирует восстановление во сне.",
+            next_interaction=NextInteraction(
+                type="NUDGE",
+                content="Сделай 5-минутную медитацию перед сном.",
+                schedule_tag="EVENING",
+            ),
+        )
+        assert obj.next_interaction.schedule_tag == "EVENING"
+
+    def test_message_required(self):
+        with pytest.raises(ValidationError):
+            LongevityBrainOutput()
+
+    def test_invalid_schedule_tag(self):
+        with pytest.raises(ValidationError):
+            NextInteraction(type="NUDGE", content="Что-то сделай", schedule_tag="AFTERNOON")
+
+    def test_no_next_interaction(self):
+        obj = LongevityBrainOutput(message_to_user="Отличная работа сегодня!")
+        assert obj.next_interaction is None
 
 
 class TestAssessmentRawAnswers:
