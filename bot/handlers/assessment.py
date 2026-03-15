@@ -35,15 +35,32 @@ ASSESSMENT_QUESTIONS = {
 
 
 def _parse_sleep_consistency(text: str) -> tuple[float, float]:
-    """Parse sleep answer into (avg_hours, variance). Returns (7.0, 0.0) as fallback."""
+    """Parse sleep answer into (avg_hours, variance). Returns (7.0, 1.0) as fallback."""
+    t = text.lower()
     numbers = re.findall(r'\d+(?:[.,]\d+)?', text)
     floats = [float(n.replace(',', '.')) for n in numbers if float(n.replace(',', '.')) <= 24]
+
     if len(floats) >= 2:
         low, high = min(floats[:2]), max(floats[:2])
-        return (low + high) / 2, high - low
+        avg, numeric_variance = (low + high) / 2, high - low
     elif len(floats) == 1:
-        return floats[0], 0.0
-    return 7.0, 0.0
+        avg, numeric_variance = floats[0], 0.0
+    else:
+        avg, numeric_variance = 7.0, 1.0
+
+    # Override with qualitative instability keywords — they trump narrow numeric range
+    if any(w in t for w in ("очень нестабильно", "крайне нестабильно", "сильно варьируется",
+                             "очень по-разному", "очень разный", "абсолютно нестабильно")):
+        variance = max(numeric_variance, 5.0)
+    elif any(w in t for w in ("нестабильно", "непостоянно", "по-разному", "варьируется",
+                               "непредсказуемо", "нерегулярно", "разный", "по разному")):
+        variance = max(numeric_variance, 3.0)
+    elif any(w in t for w in ("иногда", "бывает", "не всегда", "не регулярно")):
+        variance = max(numeric_variance, 2.0)
+    else:
+        variance = numeric_variance
+
+    return avg, variance
 
 
 def _parse_age(text: str) -> int:
