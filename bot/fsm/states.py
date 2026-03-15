@@ -9,13 +9,18 @@ class OnboardingStates(StatesGroup):
 
 
 class AssessmentStates(StatesGroup):
+    ask_age_sex = State()
+    ask_occupation = State()
+    ask_substances = State()
+    ask_medications = State()
     ask_sleep_consistency = State()
     ask_morning_energy = State()
     ask_brain_fog = State()
+    ask_exercise = State()
     ask_sedentary = State()
+    ask_blood_work = State()
+    ask_conditions = State()
     ask_stress_detail = State()
-    ask_supplements = State()
-    calculating = State()
 
 
 class DailyLoopStates(StatesGroup):

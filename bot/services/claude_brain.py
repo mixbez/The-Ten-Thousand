@@ -171,19 +171,29 @@ async def call_claude(
 ) -> LongevityBrainOutput:
     from bot.scoring_logic import normalize_health_scores
     scores = normalize_health_scores(user_state.get("health_scores", {}))
+    ad = user_state.get("assessment_data", {})
 
     context = f"""user_profile:
   name: {user_state.get('name', 'unknown')}
+  age: {ad.get('age', 'unknown')}
+  sex: {ad.get('sex', 'unknown')}
   coaching_style: {user_state.get('coaching_style', 'balanced')}
   goals: {user_state.get('motivation', 'not specified')}
-  constraints: {user_state.get('assessment_data', {}).get('supplements', 'none')}
-  stress_level: {user_state.get('stress_level', 'unknown')}
+  occupation: {ad.get('occupation', 'unknown')}
+  substances: {ad.get('substances', 'none')}
+  medications: {ad.get('medications', 'none')}
+  conditions: {ad.get('conditions', 'none')}
 
 health_data:
   domain_scores: {json.dumps(scores, ensure_ascii=False)}
-  bio_markers: {json.dumps(user_state.get('assessment_data', {}), ensure_ascii=False)}
-
-nudge_history: []
+  bio_markers_self_reported:
+    blood_work: {ad.get('blood_work', 'unknown')}
+    morning_energy: {ad.get('morning_energy', 'unknown')}
+    brain_fog_frequency: {ad.get('brain_fog', 'unknown')}
+    sleep: {ad.get('avg_sleep', 'unknown')}h avg, variance {ad.get('sleep_variance', 'unknown')}h
+    sedentary: {ad.get('sedentary_hours', 'unknown')}h/day
+    exercise: {ad.get('exercise', 'unknown')}
+    stress_detail: {ad.get('stress_detail', 'unknown')}
 
 instruction: {instruction}
 user_input: {sanitized_input or '(no input — proactive delivery)'}"""

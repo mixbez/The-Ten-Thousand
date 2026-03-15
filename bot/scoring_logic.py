@@ -104,6 +104,55 @@ def score_nutrition(rating: int) -> int:
     return min(100, rating * 10)
 
 
+def score_exercise(text: str) -> int:
+    """Score exercise quality based on free-text description."""
+    if not text:
+        return 5
+    t = text.lower().strip()
+
+    # Nothing at all
+    if any(w in t for w in ("ничего", "нет", "не делаю", "не занимаюсь")):
+        return 5
+
+    # Professional / competitive athlete
+    if any(w in t for w in ("профессиональн", "спортсмен", "соревнован")):
+        return 95
+
+    # Daily / every day keywords
+    daily_keywords = ("каждый день", "ежедневно", "каждое утро", "каждый вечер")
+    if any(w in t for w in daily_keywords):
+        # Check for sport keywords
+        sport_keywords = ("зал", "трениров", "бег", "велосипед", "плавани",
+                          "кросс", "силовая", "фитнес", "спорт")
+        if any(w in t for w in sport_keywords):
+            return 90
+
+    # 2-3 times a week with sport
+    multi_week = ("2-3 раза", "3 раза", "2 раза", "трижды", "дважды",
+                  "три раза", "два раза", "пару раз")
+    sport_keywords = ("зал", "трениров", "бег", "велосипед", "плавани",
+                      "кросс", "силовая", "фитнес", "спорт")
+    if any(m in t for m in multi_week) and any(w in t for w in sport_keywords):
+        return 75
+
+    # Once a week with sport
+    once_week = ("раз в неделю", "1 раз в неделю", "один раз в неделю", "раз в 7")
+    if any(m in t for m in once_week) and any(w in t for w in sport_keywords):
+        return 60
+
+    # Any sport keyword without clear frequency → 60-80 fallback
+    if any(w in t for w in sport_keywords):
+        return 60
+
+    # Walking / light activity
+    walk_keywords = ("хожу", "прогулк", "пешком", "гуляю", "ходьба")
+    if any(w in t for w in walk_keywords):
+        return 30
+
+    # Default — something mentioned but unclear
+    return 40
+
+
 def score_movement(minutes: int) -> int:
     """Score movement based on active minutes per day (kept for backward compat)."""
     if minutes < 0:
@@ -155,13 +204,21 @@ def score_deep_assessment(
     brain_fog: str,
     sedentary_hours: float,
     stress_level: int,
+    exercise_text: str = "",
 ) -> Dict[str, float]:
     """Full deep assessment scoring. Returns per-category and overall scores."""
+    sedentary_score = score_sedentary(sedentary_hours)
+    if exercise_text:
+        exercise_score = score_exercise(exercise_text)
+        movement_score = round((sedentary_score + exercise_score) / 2)
+    else:
+        movement_score = sedentary_score
+
     scores = {
         "sleep": score_sleep_consistency(avg_sleep, sleep_variance),
         "energy": score_morning_energy(morning_energy),
         "nutrition": score_brain_fog(brain_fog),
-        "movement": score_sedentary(sedentary_hours),
+        "movement": movement_score,
         "stress": score_stress(stress_level),
     }
     scores["overall"] = calculate_overall_score(scores)

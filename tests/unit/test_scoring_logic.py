@@ -2,6 +2,7 @@ import pytest
 from bot.scoring_logic import (
     score_sleep, score_nutrition, score_movement, score_stress,
     score_sleep_consistency, score_morning_energy, score_brain_fog, score_sedentary,
+    score_exercise,
     calculate_overall_score, score_assessment, score_deep_assessment,
     normalize_health_scores, calculate_overall_score_v13,
 )
@@ -239,6 +240,29 @@ class TestNormalizeHealthScores:
         old = {"sleep": 80, "energy": 60, "nutrition": 55, "movement": 30, "stress": 65, "overall": 59.5}
         result = normalize_health_scores(old)
         assert result["overall"] == 59.5
+
+
+class TestScoreExercise:
+    def test_nothing(self):
+        assert score_exercise("ничего") == 5
+
+    def test_walking(self):
+        assert score_exercise("хожу пешком") == 30
+
+    def test_gym_weekly(self):
+        assert score_exercise("зал раз в неделю") == 60
+
+    def test_gym_3x(self):
+        assert score_exercise("зал 2-3 раза в неделю") == 75
+
+    def test_daily(self):
+        assert score_exercise("бегаю каждый день") == 90
+
+    def test_professional(self):
+        assert score_exercise("профессиональный спортсмен") == 95
+
+    def test_default(self):
+        assert score_exercise("иногда что-то делаю") == 40
 
 
 class TestCalculateOverallScoreV13:

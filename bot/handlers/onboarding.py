@@ -167,11 +167,10 @@ async def handle_commitment(message: Message, state: FSMContext):
         await session.commit()
 
     from bot.fsm.states import AssessmentStates
-    await state.set_state(AssessmentStates.ask_sleep_consistency)
+    await state.set_state(AssessmentStates.ask_age_sex)
     await message.answer(
         "Отлично! Теперь составим твой профиль здоровья.\n\n"
-        "*Оценка* — 6 вопросов о паттернах, а не просто цифрах.\n\n"
-        "*Сон:* Сколько часов ты спишь и насколько это стабильно?\n"
-        "(например: стабильно 7-8 часов ИЛИ от 4 до 12 в зависимости от дня)",
+        "*Оценка* — 12 вопросов о паттернах, образе жизни и биомаркерах.\n\n"
+        "Сколько тебе лет и какой биологический пол? (например: 34, мужской)",
         parse_mode="Markdown",
     )
