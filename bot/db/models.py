@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Float, Text, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, Float, Text, ForeignKey, Date
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -25,6 +25,8 @@ class User(Base):
     fsm_phase = Column(Integer, default=0)  # 0=onboarding, 1=assessment, 2/3=daily, 4=monthly
     is_active = Column(Boolean, default=True)
     last_monthly_audit = Column(DateTime, nullable=True)
+    nudge_plan = Column(JSONB, default=list)
+    nudge_plan_start = Column(Date, nullable=True)
     block_count = Column(Integer, default=0)
     block_reset_at = Column(DateTime, nullable=True)
     message_count = Column(Integer, default=0)

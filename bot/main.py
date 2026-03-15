@@ -11,7 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from bot.config import settings
 from bot.db.database import init_db
 from bot.services.scheduler import scheduler
-from bot.handlers import commands, onboarding, assessment, daily_loop
+from bot.handlers import commands, onboarding, assessment, daily_loop, nudge_callbacks
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,6 +30,7 @@ dp.include_router(commands.router)
 dp.include_router(onboarding.router)
 dp.include_router(assessment.router)
 dp.include_router(daily_loop.router)
+dp.include_router(nudge_callbacks.router)
 
 
 async def main():

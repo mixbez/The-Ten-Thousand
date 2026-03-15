@@ -10,7 +10,7 @@ from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 from bot.db.database import async_session_maker
-from bot.db.models import User
+from bot.db.models import User, Interaction
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +80,11 @@ async def restore_all_jobs(bot) -> None:
 
 
 async def send_morning_nudge(user_id: str, bot) -> None:
-    """Generate and send a morning nudge via Claude."""
-    from bot.services.claude_brain import safe_claude_call
+    """Generate and send a morning nudge via Claude with inline buttons."""
+    import uuid as uuid_mod
+    from bot.services.claude_brain import safe_claude_call_v2
+    from bot.services.context_builder import build_context, get_today_domain
+    from bot.handlers.nudge_callbacks import nudge_keyboard
 
     async with async_session_maker() as session:
         result = await session.execute(select(User).where(User.id == user_id))
@@ -89,47 +92,64 @@ async def send_morning_nudge(user_id: str, bot) -> None:
         if not user or not user.telegram_id or not user.is_active:
             return
 
+        interactions_result = await session.execute(
+            select(Interaction)
+            .where(Interaction.user_id == user.id)
+            .order_by(Interaction.created_at.desc())
+            .limit(5)
+        )
+        recent = interactions_result.scalars().all()
+
+        from bot.scoring_logic import normalize_health_scores
         user_state = {
-            "name": "",
             "coaching_style": user.coaching_style or "balanced",
             "motivation": user.motivation or "",
-            "health_scores": user.health_scores or {},
+            "health_scores": normalize_health_scores(user.health_scores or {}),
             "assessment_data": user.assessment_data or {},
-            "timezone_name": user.timezone_name,
         }
+        domain = get_today_domain(user)
+        telegram_id = user.telegram_id
 
-    from bot.scoring_logic import normalize_health_scores
-    user_state["health_scores"] = normalize_health_scores(user_state.get("health_scores", {}))
-
-    brain_output = await safe_claude_call(
-        user_state=user_state,
-        sanitized_input=None,
-        history=[],
-        instruction=(
-            "Сгенерируй одно утреннее стратегическое ACTION на сегодня по принципам Медицины 3.0. "
-            "Оцени стресс из assessment_data.stress_detail и применяй Stress Filter самостоятельно. "
-            "Приоритет: Gap First — если нет данных по HOMA-IR, ApoB, VO2 Max — направь на анализ. "
-            "Иначе: устрани главную 'утечку' (самый слабый домен). "
-            "Действие медицински значимое, ≤15 минут."
-        ),
+    instruction = (
+        "Сгенерируй одно утреннее ACTION по focus_domain. "
+        "Оцени стресс и применяй Stress Filter. "
+        "Если задание повторяется после ✗ — снизь барьер входа. "
+        "Действие медицински значимое, ≤15 минут."
     )
+    context_str = build_context(user_state, domain, recent, instruction)
+    brain_output = await safe_claude_call_v2(context_str)
+
+    # Save interaction record
+    async with async_session_maker() as session:
+        interaction = Interaction(
+            user_id=uuid_mod.UUID(user_id),
+            nudge_text=brain_output.message_to_user,
+            category=domain,
+            delivery_time="MORNING",
+        )
+        session.add(interaction)
+        await session.commit()
+        await session.refresh(interaction)
+        interaction_id = str(interaction.id)
 
     try:
         await bot.send_message(
-            chat_id=user.telegram_id,
+            chat_id=telegram_id,
             text=f"🌅 *Утреннее задание*\n\n{brain_output.message_to_user}",
             parse_mode="Markdown",
+            reply_markup=nudge_keyboard(interaction_id),
         )
-        logger.info(f"Sent morning nudge to user {user_id}")
+        logger.info(f"Sent morning nudge to user {user_id} (domain: {domain})")
     except Exception as e:
         logger.error(f"Failed to send morning nudge to {user_id}: {e}")
 
 
 async def send_evening_reflection(user_id: str, bot) -> None:
-    """Generate and send an evening reflection question via Claude."""
-    from bot.services.claude_brain import safe_claude_call
-    from bot.fsm.states import DailyLoopStates
-    from aiogram.fsm.storage.memory import MemoryStorage
+    """Generate and send an evening reflection question with inline buttons."""
+    import uuid as uuid_mod
+    from bot.services.claude_brain import safe_claude_call_v2
+    from bot.services.context_builder import build_context, get_today_domain
+    from bot.handlers.nudge_callbacks import nudge_keyboard
 
     async with async_session_maker() as session:
         result = await session.execute(select(User).where(User.id == user_id))
@@ -137,38 +157,54 @@ async def send_evening_reflection(user_id: str, bot) -> None:
         if not user or not user.telegram_id or not user.is_active:
             return
 
+        interactions_result = await session.execute(
+            select(Interaction)
+            .where(Interaction.user_id == user.id)
+            .order_by(Interaction.created_at.desc())
+            .limit(5)
+        )
+        recent = interactions_result.scalars().all()
+
+        from bot.scoring_logic import normalize_health_scores
         user_state = {
-            "name": "",
             "coaching_style": user.coaching_style or "balanced",
             "motivation": user.motivation or "",
-            "health_scores": user.health_scores or {},
+            "health_scores": normalize_health_scores(user.health_scores or {}),
             "assessment_data": user.assessment_data or {},
-            "timezone_name": user.timezone_name,
         }
+        domain = get_today_domain(user)
+        telegram_id = user.telegram_id
 
-    from bot.scoring_logic import normalize_health_scores
-    user_state["health_scores"] = normalize_health_scores(user_state.get("health_scores", {}))
-
-    brain_output = await safe_claude_call(
-        user_state=user_state,
-        sanitized_input=None,
-        history=[],
-        instruction=(
-            "Задай один вечерний вопрос для рефлексии по сегодняшнему ACTION. "
-            "Используй Second-Order Thinking: если пользователь выполнил задание — "
-            "спроси о физиологическом отклике (энергия, концентрация, HRV если есть). "
-            "Если не выполнил — спроси о точке трения, без осуждения. "
-            "Один вопрос, не более 2 предложений."
-        ),
+    instruction = (
+        "Задай один вечерний вопрос по focus_domain и сегодняшнему ACTION из history. "
+        "Если ✓ — спроси о физиологическом отклике (энергия, концентрация, сон). "
+        "Если ✗ или ? — спроси о точке трения, без осуждения. "
+        "Один вопрос, не более 2 предложений."
     )
+    context_str = build_context(user_state, domain, recent, instruction)
+    brain_output = await safe_claude_call_v2(context_str)
+
+    # Save interaction record
+    async with async_session_maker() as session:
+        interaction = Interaction(
+            user_id=uuid_mod.UUID(user_id),
+            nudge_text=brain_output.message_to_user,
+            category=domain,
+            delivery_time="EVENING",
+        )
+        session.add(interaction)
+        await session.commit()
+        await session.refresh(interaction)
+        interaction_id = str(interaction.id)
 
     try:
         await bot.send_message(
-            chat_id=user.telegram_id,
+            chat_id=telegram_id,
             text=f"🌙 *Вечерняя рефлексия*\n\n{brain_output.message_to_user}",
             parse_mode="Markdown",
+            reply_markup=nudge_keyboard(interaction_id),
         )
-        logger.info(f"Sent evening reflection to user {user_id}")
+        logger.info(f"Sent evening reflection to user {user_id} (domain: {domain})")
     except Exception as e:
         logger.error(f"Failed to send evening reflection to {user_id}: {e}")
 

@@ -1,0 +1,3 @@
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS nudge_plan JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS nudge_plan_start DATE;

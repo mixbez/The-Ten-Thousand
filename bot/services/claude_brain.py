@@ -13,68 +13,25 @@ logger = logging.getLogger(__name__)
 
 client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-SYSTEM_PROMPT = """Ты — Longevity Intelligence Core проекта "10 000". Стратег долголетия на базе принципов Медицины 3.0 (Питер Аттиа, Морган Левин, Мэттью Уокер).
-Твоя миссия: максимизировать healthspan и lifespan через высокоROI вмешательства.
+SYSTEM_PROMPT = """Ты — Longevity Intelligence Core, Медицина 3.0 (Аттиа, Левин, Уокер). Максимизируй healthspan через высокоROI вмешательства.
 
-# Стиль коммуникации
-Радикальная прозрачность, медицинская точность, ноль воды.
-Anti-Cringe Rule: никаких бытовых аналогий ("сердце — насос"). Не льсти. Используй биохимические и физиологические термины напрямую: метаболическая гибкость, гликирование, аутофагия, постпрандиальная сонливость.
+Стиль: радикальная прозрачность, биохимические термины (метаболическая гибкость, аутофагия, постпрандиальная сонливость), ноль воды, без аналогий, без лести.
 
-# Основная философия
-Приоритет 1: Data Discovery — заполни пробелы в данных.
-Приоритет 2: Risk Mitigation — Четыре всадника (метаболический синдром, ССЗ, онкология, нейродегенерация).
-Приоритет 3: Performance Optimization — VO2 Max, мышечная масса.
+Приоритеты: 1) Data gaps → HOMA-IR, ApoB, VO2 Max 2) Риски: 4 всадника (метаболический синдром, ССЗ, онкология, нейродегенерация) 3) Performance: VO2 Max, мышечная масса.
 
-# Discovery Algorithm
-Правило "Одного Вопроса": задавай только один глубокий вопрос за раз.
-Second-Order Thinking: если пользователь даёт субъективный ответ ("чувствую себя нормально") — перекрёстно проверь с объективными трендами или задай уточняющий физиологический вопрос ("ты испытываешь постпрандиальную сонливость или ранние пробуждения в 3-4 ночи?").
+Правила:
+— Один вопрос за раз. Субъективный ответ → перекрести с физиологией (Second-order thinking).
+— Stress Filter: самостоятельно оцени стресс из данных. >7/10 → только Recovery ROI (сон, магний, Zone 2); запрещены высокоинтенсивные задания.
+— Объективные данные (HRV, глюкоза, АД) → вес 2.0x над субъективными.
+— Лекарства: учитывай метаболические эффекты (антидепрессанты → вес, пролактин, глюкоза).
+— Невыполнение = системный сбой. Предложи альтернативу с меньшим барьером входа.
+— focus_domain в контексте — основной домен сегодня. Работай с ним, если нет критических data gaps.
 
-# Stress Filter (ОБЯЗАТЕЛЬНО — ты оцениваешь сам)
-На основе описания стресса пользователя (stress_detail) самостоятельно оцени реальный уровень стресса.
-Если ты оцениваешь его как высокий (>7/10) — переключись СТРОГО на Recovery ROI.
-Запрещено: высокоинтенсивные / высококортизольные задания в фазе высокого стресса.
-Разрешено: стабилизация сна, баланс магния/электролитов, Zone 2 активность.
-Отрази свою оценку стресса в internal_analysis.logic_chain.
+Веса: sleep 35%, metabolic 25%, physical 20%, mental_recovery 20%.
 
-# Objective Override
-Объективные данные (HRV, глюкоза, АД) всегда перекрывают субъективные с весом 2.0x.
-
-# Приоритизация Nudge-ов
-1. Gap First: если нет липидного профиля или инсулина натощак — первоочередная задача — отправить на анализ (напр., Synlab).
-2. Medication Awareness: учитывай влияние антидепрессантов на метаболические маркеры (вес, пролактин, глюкоза).
-3. No Moralizing: если пользователь не выполнил задание — анализируй как системный сбой, не личный. Предложи альтернативу с меньшим барьером входа.
-
-# Скоринг доменов
-Sleep (35%), Metabolic (25%), Physical (20%), Mental Recovery (20%).
-Objective data weight: 2.0x.
-
-# ОБЯЗАТЕЛЬНЫЙ ФОРМАТ ОТВЕТА (строгий JSON, только на русском языке)
-{
-  "internal_analysis": {
-    "detected_risks": ["список рисков"],
-    "data_gaps": ["чего не хватает для полной картины"],
-    "logic_chain": "краткая цепочка рассуждений за текущим выбором"
-  },
-  "updated_scores": {
-    "biological_age_estimate": null,
-    "domain_scores": {
-      "sleep": 0.0,
-      "metabolic": 0.0,
-      "physical": 0.0,
-      "mental_recovery": 0.0
-    }
-  },
-  "message_to_user": "Прямой, data-driven инсайт. Свяжи действие с конкретным биологическим исходом.",
-  "next_interaction": {
-    "type": "ACTION" | "ASSESSMENT" | "REFLECTION",
-    "content": "Конкретный nudge или глубокий вопрос",
-    "schedule_tag": "MORNING" | "EVENING",
-    "medical_flag": false
-  }
-}
-
-updated_scores и next_interaction могут быть null если не применимы.
-Язык: только русский. Возвращай ТОЛЬКО валидный JSON — без markdown, без текста вне JSON."""
+ФОРМАТ (строгий JSON, только русский, без markdown вне JSON):
+{"internal_analysis":{"detected_risks":[],"data_gaps":[],"logic_chain":""},"updated_scores":{"biological_age_estimate":null,"domain_scores":{"sleep":0,"metabolic":0,"physical":0,"mental_recovery":0}},"message_to_user":"","next_interaction":{"type":"ACTION","content":"","schedule_tag":"MORNING","medical_flag":false}}
+updated_scores и next_interaction могут быть null."""
 
 FALLBACK_OUTPUTS = [
     LongevityBrainOutput(
@@ -226,3 +183,71 @@ async def safe_claude_call(
     except Exception as e:
         logger.error(f"Claude brain failed: {e}. Using fallback.")
         return get_fallback_output()
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+async def call_claude_with_context(context_str: str, history: list) -> LongevityBrainOutput:
+    """Call Claude with a pre-built compact context string."""
+    messages = history[-6:] + [{"role": "user", "content": context_str}]
+    response = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=800,
+        system=SYSTEM_PROMPT,
+        messages=messages,
+    )
+    raw = response.content[0].text.strip()
+    try:
+        return _parse_output(raw)
+    except Exception as e:
+        logger.error(f"Failed to parse Claude output: {e}\nRaw: {raw}")
+        raise
+
+
+async def safe_claude_call_v2(context_str: str, history: list = None) -> LongevityBrainOutput:
+    """Safe wrapper for call_claude_with_context."""
+    try:
+        return await call_claude_with_context(context_str, history or [])
+    except Exception as e:
+        logger.error(f"Claude brain v2 failed: {e}. Using fallback.")
+        return get_fallback_output()
+
+
+async def generate_nudge_plan(health_scores: Dict, assessment_data: Dict) -> list:
+    """
+    Generate a 30-day domain priority schedule using Claude Haiku (cheap).
+    Returns list of 30 domain strings: sleep / metabolic / physical / stress.
+    """
+    scores_str = json.dumps(health_scores, ensure_ascii=False)
+    conditions = assessment_data.get("conditions", "")
+    medications = assessment_data.get("medications", "")
+    stress_detail = assessment_data.get("stress_detail", "")
+
+    prompt = (
+        f"Составь список из ровно 30 доменов для ежедневных nudge.\n"
+        f"Домены только из: sleep, metabolic, physical, stress.\n"
+        f"Правила: самый слабый домен встречается чаще; не более 3 подряд одинаковых; "
+        f"stress приоритетен при депрессии/тревожности или высоком субъективном стрессе.\n"
+        f"scores={scores_str}\nconditions={conditions}\nrx={medications}\nstress={stress_detail}\n"
+        f"Верни ТОЛЬКО валидный JSON массив из 30 строк. Без комментариев."
+    )
+
+    try:
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        plan = json.loads(raw.strip())
+        # Validate — ensure all values are valid domains
+        valid = {"sleep", "metabolic", "physical", "stress"}
+        plan = [d if d in valid else "stress" for d in plan]
+        return plan[:30]
+    except Exception as e:
+        logger.error(f"generate_nudge_plan failed: {e}. Using default cycle.")
+        # Fallback: sensible default cycle
+        return (["stress", "sleep", "stress", "metabolic", "physical", "sleep"] * 5)[:30]

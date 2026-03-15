@@ -384,6 +384,20 @@ async def handle_stress_detail(message: Message, state: FSMContext):
 
     await message.answer(brain_output.message_to_user)
 
+    # Generate 30-day nudge plan
+    from bot.services.claude_brain import generate_nudge_plan
+    from datetime import date as date_type
+    nudge_plan = await generate_nudge_plan(normalised_scores, assessment_data)
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == str(message.from_user.id))
+        )
+        u = result.scalar_one_or_none()
+        if u:
+            u.nudge_plan = nudge_plan
+            u.nudge_plan_start = date_type.today()
+            await session.commit()
+
     # Register recurring daily jobs now that assessment is complete
     from bot.services.scheduler import register_daily_jobs
     async with async_session_maker() as session:
