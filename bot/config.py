@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # Monthly audit cooldown (days)
     monthly_cooldown_days: int = 21
 
+    # Admin
+    admin_telegram_id: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

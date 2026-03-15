@@ -77,6 +77,9 @@ async def cmd_personality(message: Message):
 
 @router.message(Command("monthly"))
 async def cmd_monthly(message: Message, state: FSMContext):
+    is_admin = str(message.from_user.id) == settings.admin_telegram_id
+    admin_override = is_admin and "--admin" in (message.text or "")
+
     async with async_session_maker() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == str(message.from_user.id))
@@ -86,7 +89,7 @@ async def cmd_monthly(message: Message, state: FSMContext):
             await message.answer("Сначала напиши /start.")
             return
 
-        if is_monthly_cooldown_active(user.last_monthly_audit, settings.monthly_cooldown_days):
+        if not admin_override and is_monthly_cooldown_active(user.last_monthly_audit, settings.monthly_cooldown_days):
             days_left = days_until_cooldown_expires(
                 user.last_monthly_audit, settings.monthly_cooldown_days
             )
