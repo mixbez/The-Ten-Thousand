@@ -210,7 +210,7 @@ def score_deep_assessment(
     sedentary_score = score_sedentary(sedentary_hours)
     if exercise_text:
         exercise_score = score_exercise(exercise_text)
-        movement_score = round((sedentary_score + exercise_score) / 2)
+        movement_score = round(exercise_score * 0.7 + sedentary_score * 0.3)
     else:
         movement_score = sedentary_score
 

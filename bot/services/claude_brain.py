@@ -191,7 +191,7 @@ async def call_claude_with_context(context_str: str, history: list) -> Longevity
     messages = history[-6:] + [{"role": "user", "content": context_str}]
     response = await client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=800,
+        max_tokens=1200,
         system=SYSTEM_PROMPT,
         messages=messages,
     )
