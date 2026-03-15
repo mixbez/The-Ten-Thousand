@@ -100,10 +100,10 @@ async def cmd_monthly(message: Message, state: FSMContext):
             return
 
         from bot.fsm.states import AssessmentStates
+        from bot.handlers.assessment import ASSESSMENT_QUESTIONS
         await state.set_state(AssessmentStates.ask_age_sex)
-        await message.answer(
-            "Время для ежемесячного аудита — 12 вопросов, чтобы увидеть динамику.",
-        )
+        await message.answer("Время для ежемесячного аудита — 12 вопросов, чтобы увидеть динамику.")
+        await message.answer(ASSESSMENT_QUESTIONS["ask_age_sex"])
 
 
 @router.message(Command("stop"))
