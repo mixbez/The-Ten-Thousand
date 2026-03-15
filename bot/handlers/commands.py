@@ -138,6 +138,74 @@ async def cmd_hard_reset(message: Message, state: FSMContext):
     )
 
 
+@router.message(Command("get_info"))
+async def cmd_get_info(message: Message):
+    """Show user all data stored about them."""
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == str(message.from_user.id))
+        )
+        user = result.scalar_one_or_none()
+        if not user:
+            await message.answer("Данных нет. Напиши /start, чтобы зарегистрироваться.")
+            return
+
+    ad = user.assessment_data or {}
+    hs = user.health_scores or {}
+
+    lines = ["*Данные, которые мы храним о тебе:*\n"]
+
+    # Profile
+    lines.append("*— Профиль —*")
+    lines.append(f"Возраст: {ad.get('age') or '—'}")
+    lines.append(f"Пол: {ad.get('sex') or '—'}")
+    lines.append(f"Работа: {ad.get('occupation') or '—'}")
+    lines.append(f"Стиль коучинга: {user.coaching_style or '—'}")
+    lines.append(f"Мотивация: {user.motivation or '—'}")
+    lines.append(f"Часовой пояс: {user.timezone_name or 'UTC'}")
+
+    # Health inputs
+    lines.append("\n*— Данные о здоровье —*")
+    lines.append(f"Сон (среднее): {ad.get('avg_sleep', '—')} ч")
+    lines.append(f"Сон (вариабельность): {ad.get('sleep_variance', '—')} ч")
+    lines.append(f"Утренняя энергия: {ad.get('morning_energy', '—')}/10")
+    lines.append(f"Туман в голове: {ad.get('brain_fog') or '—'}")
+    lines.append(f"Сидячее время: {ad.get('sedentary_hours', '—')} ч/день")
+    lines.append(f"Физическая активность: {ad.get('exercise') or '—'}")
+    lines.append(f"Стресс: {ad.get('stress_detail') or '—'}")
+
+    # Medical
+    lines.append("\n*— Медицинское —*")
+    lines.append(f"Препараты/добавки: {ad.get('medications') or '—'}")
+    lines.append(f"Вещества: {ad.get('substances') or '—'}")
+    lines.append(f"Анализы крови: {ad.get('blood_work') or '—'}")
+    lines.append(f"Состояния/диагнозы: {ad.get('conditions') or '—'}")
+
+    # Scores
+    if hs:
+        lines.append("\n*— Баллы здоровья —*")
+        score_labels = {
+            "sleep": "Сон",
+            "metabolic": "Метаболика",
+            "physical": "Физическое",
+            "mental_recovery": "Ментальное восстановление",
+            "overall": "Общий балл",
+        }
+        for key, label in score_labels.items():
+            if key in hs:
+                lines.append(f"{label}: {hs[key]}")
+
+    # Meta
+    lines.append("\n*— Служебное —*")
+    lines.append(f"Аккаунт создан: {user.created_at.strftime('%Y-%m-%d') if user.created_at else '—'}")
+    last_audit = user.last_monthly_audit.strftime('%Y-%m-%d') if user.last_monthly_audit else '—'
+    lines.append(f"Последний аудит: {last_audit}")
+    lines.append(f"Статус: {'активен' if user.is_active else 'приостановлен'}")
+    lines.append(f"\nЧтобы удалить все данные — напиши /hard\\_reset.")
+
+    await message.answer("\n".join(lines), parse_mode="Markdown")
+
+
 @router.message(Command("link"))
 async def cmd_link(message: Message):
     """Opt-in: link Telegram ID for account recovery."""
