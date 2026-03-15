@@ -64,17 +64,7 @@ async def handle_reflection_response(message: Message, state: FSMContext):
         user.block_count = 0
         await session.commit()
 
-        if brain_output.next_interaction:
-            from bot.services.scheduler import schedule_nudge
-            from bot.main import bot
-            await schedule_nudge(
-                user_id=str(user.id),
-                delivery_time=brain_output.next_interaction.schedule_tag,
-                timezone_name=user.timezone_name,
-                bot=bot,
-                nudge_text=brain_output.next_interaction.content,
-                category="general",
-            )
+        pass  # daily jobs run on cron — no need to reschedule after each reflection
 
     await state.clear()
     await message.answer(brain_output.message_to_user)

@@ -12,9 +12,10 @@ class SanitizerOutput(BaseModel):
 
 
 class NextInteraction(BaseModel):
-    type: Literal["NUDGE", "REFLECTION", "ASSESSMENT"]
+    type: Literal["ACTION", "NUDGE", "REFLECTION", "ASSESSMENT"]
     content: str = Field(min_length=5, max_length=1000)
     schedule_tag: Literal["MORNING", "EVENING", "IMMEDIATE"]
+    medical_flag: bool = False
 
 
 class LongevityBrainOutput(BaseModel):

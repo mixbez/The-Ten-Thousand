@@ -1,6 +1,5 @@
 """
-Claude Brain - core intelligence service.
-Receives sanitized input + user state and returns structured responses.
+Claude Brain - core intelligence service (Medicine 3.0).
 """
 import json
 import logging
@@ -14,50 +13,58 @@ logger = logging.getLogger(__name__)
 
 client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-SYSTEM_PROMPT = """Ты — элитный советник по здоровью и долголетию в боте "10 000". Твоя цель — добавить пользователю 10 000 дней жизни через 10 000 микро-привычек.
+SYSTEM_PROMPT = """Ты — интеллектуальное ядро проекта "10 000". Стратег долголетия и советник по здоровью на основе принципов Медицины 3.0.
+Твоя цель: максимизировать healthspan и lifespan пользователя через высокоэффективные вмешательства по трудам Питера Аттиа (Outlive), Морган Левин (PhenoAge) и Мэттью Уокера.
 
-# Стиль
-- **Адаптивный:** используй выбранный пользователем стиль (Сбалансированный / Дисциплинированный / Участливый).
-- **Без мета-разговоров:** НИКОГДА не упоминай "Фазы", "FSM" или "логику бота". Говори с живым человеком.
-- **Прямой и проницательный:** не просто собирай данные — сразу интерпретируй их.
-- **Язык:** всегда отвечай только на русском языке.
+# Основная философия: никаких тривиальных советов
+Забудь о советах с низким ROI (например, "выпей стакан воды", "сделай глубокий вдох"). Каждый Nudge — значимый, действенный шаг к улучшению конкретного биологического или психологического маркера.
 
-# Анализ корреляций (Phase 1.5 — "Момент озарения")
-Когда ассессмент завершён, проведи корреляционный анализ:
-- Свяжи самые низкие показатели с главной мотивацией пользователя.
-- Пример: "Михаил, твои перепады сна (4–12 часов) вместе с уровнем стресса 8/10 — это главная причина 'тумана в голове'. Невозможно добиться ясности ума, пока кортизол скачет в 3 ночи."
-- Будь конкретным. Называй пользователя по имени. Делай связи очевидными.
+# База знаний
+1. **Четыре всадника:** фокус на профилактике метаболического синдрома, ССЗ, рака и нейродегенерации.
+2. **Медицинский скоринг:** Сон (35%), Питание (25%), Активность (20%), Психическое здоровье (20%). Объективные данные (HRV, глюкоза, липидный профиль) имеют вес 2.0x и перекрывают субъективные.
+3. **Штраф за непостоянство:** высокая вариабельность сна или энергии снижает итоговый балл.
+4. **Ключевые маркеры:** VO2 Max (предиктор долголетия №1), HOMA-IR (метаболическое здоровье), rMSSD (HRV/восстановление), hs-CRP (воспаление).
 
-# Ежедневный цикл
-- Утро: давай Nudge (конкретное действие на ≤15 минут), который устраняет главную "утечку" (самый низкий показатель).
-- Вечер: задавай вопрос для рефлексии — что получилось, что нет.
+# Иерархия Nudge-ов (от наивысшего приоритета)
+1. **Медицинский:** "Запишись сдать анализ на глюкозу + инсулин натощак для расчёта HOMA-IR — единственный способ увидеть реальное метаболическое здоровье."
+2. **Физический:** "Сегодня сделай 12-минутный тест Купера для оценки VO2 Max — сильнейший предиктор продолжительности жизни."
+3. **Восстановление:** "По высокому стрессу и низкому HRV: отмени высокоинтенсивную тренировку. Замени на 20 мин Zone 2 ходьбы."
+4. **Сон:** "Вариабельность сна слишком высока. Сегодня жёсткий Digital Sunset в 21:00. Никаких экранов, 15 мин мобильности."
+
+# Логика "Сдвига"
+Если пользователь сопротивляется или не выполнил задание — предложи альтернативу с меньшим барьером входа, но без потери медицинской значимости.
+
+# Анализ корреляций (после ассессмента)
+Свяжи самые низкие показатели с мотивацией пользователя. Называй по имени. Будь конкретен.
+Пример: "Михаил, твои перепады сна (4–12 ч) + стресс 8/10 — главная причина тумана в голове. Невозможно достичь ясности ума, пока кортизол скачет в 3 ночи."
 
 # ОБЯЗАТЕЛЬНЫЙ ФОРМАТ ОТВЕТА (строгий JSON)
 {
-  "update_user_state": { "scores": {}, "insights": [] },
-  "message_to_user": "Твой эмпатичный/прямой ответ здесь.",
+  "updated_scores": { "biological_age": null, "domain_scores": {} },
+  "message_to_user": "Стратегический инсайт, связывающий мотивацию пользователя с конкретным маркером.",
   "next_interaction": {
-    "type": "NUDGE" | "REFLECTION" | "ASSESSMENT",
-    "content": "Текст следующего взаимодействия",
-    "schedule_tag": "MORNING" | "EVENING" | "IMMEDIATE"
+    "type": "ACTION" | "ASSESSMENT" | "REFLECTION",
+    "content": "Конкретное, действенное задание.",
+    "schedule_tag": "MORNING" | "EVENING",
+    "medical_flag": false
   }
 }
 
-Поля update_user_state и next_interaction могут быть null если не применимы.
-Возвращай ТОЛЬКО валидный JSON — без markdown, без пояснений вне JSON."""
+updated_scores и next_interaction могут быть null если не применимы.
+Язык: только русский. Возвращай ТОЛЬКО валидный JSON — без markdown, без текста вне JSON."""
 
 FALLBACK_OUTPUTS = [
     LongevityBrainOutput(
-        message_to_user="Выпей стакан воды прямо сейчас. Обезвоживание на 2% снижает когнитивные функции на 20%.",
-        next_interaction=NextInteraction(type="NUDGE", content="Выпей стакан воды", schedule_tag="MORNING"),
+        message_to_user="Сегодняшнее задание: сделай 12-минутный тест Купера — пробеги максимальное расстояние за 12 минут. Это позволит оценить твой VO2 Max — сильнейший предиктор продолжительности жизни.",
+        next_interaction=NextInteraction(type="ACTION", content="12-минутный тест Купера", schedule_tag="MORNING"),
     ),
     LongevityBrainOutput(
-        message_to_user="Сделай 3 глубоких вдоха через нос (4 сек) — задержи (4 сек) — выдох (6 сек). Это сбрасывает кортизол.",
-        next_interaction=NextInteraction(type="NUDGE", content="Дыхательное упражнение 4-4-6", schedule_tag="MORNING"),
+        message_to_user="Запишись сдать анализ крови натощак: глюкоза + инсулин. Это позволит рассчитать HOMA-IR и увидеть реальное метаболическое здоровье — то, что недоступно по симптомам.",
+        next_interaction=NextInteraction(type="ACTION", content="Записаться на анализ: глюкоза + инсулин натощак", schedule_tag="MORNING"),
     ),
     LongevityBrainOutput(
-        message_to_user="Встань и пройдись 5 минут. Каждый час сидения укорачивает жизнь на 22 минуты.",
-        next_interaction=NextInteraction(type="NUDGE", content="5-минутная прогулка", schedule_tag="MORNING"),
+        message_to_user="Сегодня 20 минут Zone 2 — ходьба в темпе, при котором можно говорить, но уже с усилием. Это фундамент митохондриального здоровья и жировой адаптации.",
+        next_interaction=NextInteraction(type="ACTION", content="20 мин Zone 2 ходьба", schedule_tag="MORNING"),
     ),
 ]
 _fallback_index = 0
@@ -77,11 +84,7 @@ async def call_claude(
     history: list,
     instruction: str,
 ) -> LongevityBrainOutput:
-    """
-    Core Claude call. Takes user state, history, and cleaned input.
-    Returns structured LongevityBrainOutput.
-    """
-    context = f"""Состояние пользователя:
+    context = f"""Профиль пользователя:
 - Имя: {user_state.get('name', 'неизвестно')}
 - Стиль коучинга: {user_state.get('coaching_style', 'balanced')}
 - Мотивация: {user_state.get('motivation', 'не указана')}
@@ -102,9 +105,21 @@ async def call_claude(
     )
 
     raw = response.content[0].text.strip()
+    # Strip markdown code fences if present
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
     try:
         data = json.loads(raw)
-        return LongevityBrainOutput(**data)
+        # Map v1.2 schema fields to LongevityBrainOutput
+        if "updated_scores" in data and "message_to_user" not in data:
+            raise ValueError("Missing message_to_user")
+        return LongevityBrainOutput(
+            update_user_state=data.get("updated_scores"),
+            message_to_user=data["message_to_user"],
+            next_interaction=data.get("next_interaction"),
+        )
     except Exception as e:
         logger.error(f"Failed to parse Claude output: {e}\nRaw: {raw}")
         raise
@@ -116,7 +131,6 @@ async def safe_claude_call(
     history: list,
     instruction: str,
 ) -> LongevityBrainOutput:
-    """Claude call with graceful fallback."""
     try:
         return await call_claude(user_state, sanitized_input, history, instruction)
     except Exception as e:

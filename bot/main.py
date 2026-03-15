@@ -39,6 +39,10 @@ async def main():
     logger.info("Starting scheduler...")
     scheduler.start()
 
+    logger.info("Restoring daily jobs for active users...")
+    from bot.services.scheduler import restore_all_jobs
+    await restore_all_jobs(bot)
+
     logger.info("Starting bot polling...")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 

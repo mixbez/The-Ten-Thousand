@@ -240,20 +240,12 @@ async def handle_supplements(message: Message, state: FSMContext):
 
     await message.answer(brain_output.message_to_user)
 
-    if brain_output.next_interaction:
-        from bot.services.scheduler import schedule_nudge
-        from bot.main import bot as tg_bot
-        async with async_session_maker() as session:
-            result = await session.execute(
-                select(User).where(User.telegram_id == str(message.from_user.id))
-            )
-            user = result.scalar_one_or_none()
-            if user:
-                await schedule_nudge(
-                    user_id=str(user.id),
-                    delivery_time=brain_output.next_interaction.schedule_tag,
-                    timezone_name=user.timezone_name,
-                    bot=tg_bot,
-                    nudge_text=brain_output.next_interaction.content,
-                    category="general",
-                )
+    # Register recurring daily jobs now that assessment is complete
+    from bot.services.scheduler import register_daily_jobs
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == str(message.from_user.id))
+        )
+        user = result.scalar_one_or_none()
+        if user:
+            register_daily_jobs(str(user.id), user.timezone_name or "UTC", message.bot)

@@ -8,9 +8,9 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from bot.db.database import async_session_maker
-from bot.db.models import User
+from bot.db.models import User, Interaction
 from bot.fsm.states import OnboardingStates
 from bot.scheduler_math import is_monthly_cooldown_active, days_until_cooldown_expires
 from bot.config import settings
@@ -121,6 +121,24 @@ async def cmd_stop(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
         "Напоминания приостановлены. Данные сохранены. Напиши /start, чтобы продолжить."
+    )
+
+
+@router.message(Command("hard_reset"))
+async def cmd_hard_reset(message: Message, state: FSMContext):
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == str(message.from_user.id))
+        )
+        user = result.scalar_one_or_none()
+        if user:
+            await session.execute(delete(Interaction).where(Interaction.user_id == user.id))
+            await session.delete(user)
+            await session.commit()
+
+    await state.clear()
+    await message.answer(
+        "Все твои данные удалены. Напиши /start, чтобы начать заново."
     )
 
 
