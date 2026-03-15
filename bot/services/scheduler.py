@@ -100,29 +100,18 @@ async def send_morning_nudge(user_id: str, bot) -> None:
 
     from bot.scoring_logic import normalize_health_scores
     user_state["health_scores"] = normalize_health_scores(user_state.get("health_scores", {}))
-    stress_level = (user_state.get("assessment_data") or {}).get("stress_level", 4)
-    user_state["stress_level"] = stress_level
-
-    if stress_level > 7:
-        morning_instruction = (
-            "Стресс пользователя >7/10 — активен Stress Filter. "
-            "Сгенерируй одно утреннее задание строго из Recovery ROI: "
-            "стабилизация сна, Zone 2 активность или магний/электролиты. "
-            "Никаких высокоинтенсивных или высококортизольных задач."
-        )
-    else:
-        morning_instruction = (
-            "Сгенерируй одно утреннее стратегическое ACTION на сегодня по принципам Медицины 3.0. "
-            "Приоритет: Gap First — если нет данных по HOMA-IR, ApoB, VO2 Max — направь на анализ. "
-            "Иначе: устрани главную 'утечку' (самый слабый домен). "
-            "Действие должно быть медицински значимым, занимать ≤15 минут."
-        )
 
     brain_output = await safe_claude_call(
         user_state=user_state,
         sanitized_input=None,
         history=[],
-        instruction=morning_instruction,
+        instruction=(
+            "Сгенерируй одно утреннее стратегическое ACTION на сегодня по принципам Медицины 3.0. "
+            "Оцени стресс из assessment_data.stress_detail и применяй Stress Filter самостоятельно. "
+            "Приоритет: Gap First — если нет данных по HOMA-IR, ApoB, VO2 Max — направь на анализ. "
+            "Иначе: устрани главную 'утечку' (самый слабый домен). "
+            "Действие медицински значимое, ≤15 минут."
+        ),
     )
 
     try:
@@ -159,8 +148,6 @@ async def send_evening_reflection(user_id: str, bot) -> None:
 
     from bot.scoring_logic import normalize_health_scores
     user_state["health_scores"] = normalize_health_scores(user_state.get("health_scores", {}))
-    stress_level = (user_state.get("assessment_data") or {}).get("stress_level", 4)
-    user_state["stress_level"] = stress_level
 
     brain_output = await safe_claude_call(
         user_state=user_state,

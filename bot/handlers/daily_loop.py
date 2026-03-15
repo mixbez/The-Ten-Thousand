@@ -43,36 +43,25 @@ async def handle_reflection_response(message: Message, state: FSMContext):
                 await message.answer(f"Ответь на вопрос: {current_question}")
             return
 
-        stress_level = (user.assessment_data or {}).get("stress_level", 4)
-
         user_state = {
             "name": "",
             "coaching_style": user.coaching_style or "balanced",
             "motivation": user.motivation or "",
             "health_scores": normalize_health_scores(user.health_scores or {}),
             "assessment_data": user.assessment_data or {},
-            "stress_level": stress_level,
             "timezone_name": user.timezone_name,
         }
-
-        if stress_level > 7:
-            reflection_instruction = (
-                "Пользователь ответил на вечерний вопрос рефлексии. Стресс >7/10 — активен Stress Filter. "
-                "Прими ответ, сфокусируйся на Recovery: оцени качество сна и восстановления. "
-                "Утреннее задание должно быть из Recovery ROI (Zone 2, сон, магний)."
-            )
-        else:
-            reflection_instruction = (
-                "Пользователь ответил на вечерний вопрос рефлексии. "
-                "Прими ответ, обнови domain_scores если есть основания, "
-                "и подготовь завтрашнее утреннее ACTION на основе главного data gap или слабейшего домена."
-            )
 
         brain_output = await safe_claude_call(
             user_state=user_state,
             sanitized_input=sanitized.cleaned_text,
             history=[],
-            instruction=reflection_instruction,
+            instruction=(
+                "Пользователь ответил на вечерний вопрос рефлексии. "
+                "Оцени стресс из assessment_data.stress_detail и применяй Stress Filter самостоятельно. "
+                "Прими ответ, обнови domain_scores если есть основания, "
+                "и подготовь завтрашнее утреннее ACTION на основе главного data gap или слабейшего домена."
+            ),
         )
 
         if brain_output.updated_scores:

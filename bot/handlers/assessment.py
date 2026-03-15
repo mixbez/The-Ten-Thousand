@@ -161,11 +161,6 @@ async def handle_supplements(message: Message, state: FSMContext):
         if not user:
             return
 
-        # Derive numeric stress estimate from stress_detail length and keywords
-        stress_text = data.get("stress_detail", "").lower()
-        stress_keywords = ["выгора", "тревог", "не сплю", "паник", "постоян", "очень"]
-        stress_level = 7 if any(k in stress_text for k in stress_keywords) else 4
-
         avg_sleep = data.get("avg_sleep", 7.0)
         sleep_variance = data.get("sleep_variance", 0.0)
         morning_energy = data.get("morning_energy", 5)
@@ -178,7 +173,7 @@ async def handle_supplements(message: Message, state: FSMContext):
             morning_energy=morning_energy,
             brain_fog=brain_fog,
             sedentary_hours=sedentary_hours,
-            stress_level=stress_level,
+            stress_level=5,  # neutral default; Claude assesses stress from stress_detail
         )
 
         assessment_data = {
@@ -189,7 +184,6 @@ async def handle_supplements(message: Message, state: FSMContext):
             "brain_fog": brain_fog,
             "sedentary_hours": sedentary_hours,
             "stress_detail": data.get("stress_detail", ""),
-            "stress_level": stress_level,
             "supplements": sanitized.cleaned_text,
         }
 
@@ -209,7 +203,6 @@ async def handle_supplements(message: Message, state: FSMContext):
             "motivation": user.motivation or "",
             "health_scores": normalised_scores,
             "assessment_data": assessment_data,
-            "stress_level": stress_level,
             "timezone_name": user.timezone_name,
         }
 
@@ -227,29 +220,20 @@ async def handle_supplements(message: Message, state: FSMContext):
         parse_mode="Markdown",
     )
 
-    # Phase 1.5 — Longevity Insight via Claude (with Stress Filter)
-    if stress_level > 7:
-        insight_instruction = (
-            "Ассессмент завершён. У пользователя высокий стресс (>7/10). "
-            "Активируй Stress Filter: сфокусируйся ТОЛЬКО на Recovery ROI. "
-            "Проведи корреляционный анализ: объясни, как высокий кортизол блокирует его главную цель. "
-            "Первое задание должно быть направлено на стабилизацию сна или Zone 2 активность — "
-            "никаких высокоинтенсивных задач."
-        )
-    else:
-        insight_instruction = (
-            "Ассессмент завершён. Проведи корреляционный анализ по принципам Медицины 3.0: "
-            "определи главный data gap и главную 'утечку' (самый низкий домен), "
-            "свяжи с мотивацией пользователя через конкретный биологический механизм. "
-            "Если нет данных по HOMA-IR, ApoB или VO2 Max — приоритет: направить на анализ. "
-            "Первое утреннее задание придёт завтра."
-        )
-
+    # Phase 1.5 — Longevity Insight via Claude
     brain_output = await safe_claude_call(
         user_state=user_state,
         sanitized_input=None,
         history=[],
-        instruction=insight_instruction,
+        instruction=(
+            "Ассессмент завершён. Оцени уровень стресса пользователя на основе stress_detail "
+            "и применяй Stress Filter самостоятельно. "
+            "Проведи корреляционный анализ по принципам Медицины 3.0: "
+            "определи главный data gap и главную 'утечку' (самый низкий домен), "
+            "свяжи с мотивацией пользователя через конкретный биологический механизм. "
+            "Если нет данных по HOMA-IR, ApoB или VO2 Max — приоритет: направить на анализ. "
+            "Первое утреннее задание придёт завтра."
+        ),
     )
 
     await message.answer(brain_output.message_to_user)
