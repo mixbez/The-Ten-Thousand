@@ -98,16 +98,31 @@ async def send_morning_nudge(user_id: str, bot) -> None:
             "timezone_name": user.timezone_name,
         }
 
+    from bot.scoring_logic import normalize_health_scores
+    user_state["health_scores"] = normalize_health_scores(user_state.get("health_scores", {}))
+    stress_level = (user_state.get("assessment_data") or {}).get("stress_level", 4)
+    user_state["stress_level"] = stress_level
+
+    if stress_level > 7:
+        morning_instruction = (
+            "Стресс пользователя >7/10 — активен Stress Filter. "
+            "Сгенерируй одно утреннее задание строго из Recovery ROI: "
+            "стабилизация сна, Zone 2 активность или магний/электролиты. "
+            "Никаких высокоинтенсивных или высококортизольных задач."
+        )
+    else:
+        morning_instruction = (
+            "Сгенерируй одно утреннее стратегическое ACTION на сегодня по принципам Медицины 3.0. "
+            "Приоритет: Gap First — если нет данных по HOMA-IR, ApoB, VO2 Max — направь на анализ. "
+            "Иначе: устрани главную 'утечку' (самый слабый домен). "
+            "Действие должно быть медицински значимым, занимать ≤15 минут."
+        )
+
     brain_output = await safe_claude_call(
         user_state=user_state,
         sanitized_input=None,
         history=[],
-        instruction=(
-            "Сгенерируй одно утреннее стратегическое действие (Nudge) на сегодня. "
-            "Оно должно устранять главную 'утечку' пользователя (самый низкий показатель). "
-            "Действие должно занимать ≤15 минут и быть медицински значимым — никакого 'выпей воды'. "
-            "Если не хватает биомаркеров (HRV, глюкоза, HOMA-IR, VO2 Max) — предложи их измерить."
-        ),
+        instruction=morning_instruction,
     )
 
     try:
@@ -142,15 +157,21 @@ async def send_evening_reflection(user_id: str, bot) -> None:
             "timezone_name": user.timezone_name,
         }
 
+    from bot.scoring_logic import normalize_health_scores
+    user_state["health_scores"] = normalize_health_scores(user_state.get("health_scores", {}))
+    stress_level = (user_state.get("assessment_data") or {}).get("stress_level", 4)
+    user_state["stress_level"] = stress_level
+
     brain_output = await safe_claude_call(
         user_state=user_state,
         sanitized_input=None,
         history=[],
         instruction=(
-            "Задай один вечерний вопрос для рефлексии. "
-            "Он должен быть связан с сегодняшним утренним заданием — "
-            "выполнил ли пользователь его и что почувствовал. "
-            "Короткий, конкретный вопрос — не более 2 предложений."
+            "Задай один вечерний вопрос для рефлексии по сегодняшнему ACTION. "
+            "Используй Second-Order Thinking: если пользователь выполнил задание — "
+            "спроси о физиологическом отклике (энергия, концентрация, HRV если есть). "
+            "Если не выполнил — спроси о точке трения, без осуждения. "
+            "Один вопрос, не более 2 предложений."
         ),
     )
 

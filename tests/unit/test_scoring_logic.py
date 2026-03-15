@@ -3,6 +3,7 @@ from bot.scoring_logic import (
     score_sleep, score_nutrition, score_movement, score_stress,
     score_sleep_consistency, score_morning_energy, score_brain_fog, score_sedentary,
     calculate_overall_score, score_assessment, score_deep_assessment,
+    normalize_health_scores, calculate_overall_score_v13,
 )
 
 
@@ -212,3 +213,44 @@ class TestScoreDeepAssessment:
     def test_worst_case(self):
         result = score_deep_assessment(3.0, 8.0, 1, "Каждый день", 12.0, 10)
         assert result["overall"] < 30
+
+
+class TestNormalizeHealthScores:
+    def test_legacy_v11_format(self):
+        old = {"sleep": 80, "energy": 60, "nutrition": 55, "movement": 30, "stress": 65, "overall": 59.5}
+        result = normalize_health_scores(old)
+        assert "metabolic" in result
+        assert "physical" in result
+        assert "mental_recovery" in result
+        assert result["sleep"] == 80
+        assert result["metabolic"] == 55   # from nutrition
+        assert result["physical"] == 30    # from movement
+        assert result["mental_recovery"] == 62  # avg(stress=65, energy=60)
+
+    def test_already_v13_format(self):
+        v13 = {"sleep": 80, "metabolic": 60, "physical": 70, "mental_recovery": 75}
+        result = normalize_health_scores(v13)
+        assert result == v13
+
+    def test_empty_scores(self):
+        assert normalize_health_scores({}) == {}
+
+    def test_preserves_overall(self):
+        old = {"sleep": 80, "energy": 60, "nutrition": 55, "movement": 30, "stress": 65, "overall": 59.5}
+        result = normalize_health_scores(old)
+        assert result["overall"] == 59.5
+
+
+class TestCalculateOverallScoreV13:
+    def test_perfect(self):
+        scores = {"sleep": 100, "metabolic": 100, "physical": 100, "mental_recovery": 100}
+        assert calculate_overall_score_v13(scores) == 100.0
+
+    def test_weights(self):
+        # sleep=100 at 35%, rest=0 → 35.0
+        scores = {"sleep": 100, "metabolic": 0, "physical": 0, "mental_recovery": 0}
+        assert calculate_overall_score_v13(scores) == 35.0
+
+    def test_missing_domain_raises(self):
+        with pytest.raises(ValueError):
+            calculate_overall_score_v13({"sleep": 100})

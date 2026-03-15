@@ -200,12 +200,16 @@ async def handle_supplements(message: Message, state: FSMContext):
         user.last_monthly_audit = datetime.utcnow()
         await session.commit()
 
+        from bot.scoring_logic import normalize_health_scores
+        normalised_scores = normalize_health_scores(scores)
+
         user_state = {
             "name": data.get("name", ""),
             "coaching_style": user.coaching_style or "balanced",
             "motivation": user.motivation or "",
-            "health_scores": scores,
+            "health_scores": normalised_scores,
             "assessment_data": assessment_data,
+            "stress_level": stress_level,
             "timezone_name": user.timezone_name,
         }
 
@@ -215,27 +219,37 @@ async def handle_supplements(message: Message, state: FSMContext):
     await message.answer(
         f"*Твои показатели:*\n"
         f"• Сон: {scores['sleep']}/100\n"
-        f"• Утренняя энергия: {scores['energy']}/100\n"
-        f"• Питание: {scores['nutrition']}/100\n"
-        f"• Движение: {scores['movement']}/100\n"
-        f"• Стресс: {scores['stress']}/100\n"
+        f"• Метаболика: {scores.get('nutrition', scores.get('metabolic', 0))}/100\n"
+        f"• Физическая активность: {scores.get('movement', scores.get('physical', 0))}/100\n"
+        f"• Ментальное восстановление: {scores['stress']}/100\n"
         f"• *Общий балл: {overall}/100*\n\n"
-        f"Анализирую взаимосвязи...",
+        f"Анализирую данные...",
         parse_mode="Markdown",
     )
 
-    # Phase 1.5 — Longevity Insight via Claude
+    # Phase 1.5 — Longevity Insight via Claude (with Stress Filter)
+    if stress_level > 7:
+        insight_instruction = (
+            "Ассессмент завершён. У пользователя высокий стресс (>7/10). "
+            "Активируй Stress Filter: сфокусируйся ТОЛЬКО на Recovery ROI. "
+            "Проведи корреляционный анализ: объясни, как высокий кортизол блокирует его главную цель. "
+            "Первое задание должно быть направлено на стабилизацию сна или Zone 2 активность — "
+            "никаких высокоинтенсивных задач."
+        )
+    else:
+        insight_instruction = (
+            "Ассессмент завершён. Проведи корреляционный анализ по принципам Медицины 3.0: "
+            "определи главный data gap и главную 'утечку' (самый низкий домен), "
+            "свяжи с мотивацией пользователя через конкретный биологический механизм. "
+            "Если нет данных по HOMA-IR, ApoB или VO2 Max — приоритет: направить на анализ. "
+            "Первое утреннее задание придёт завтра."
+        )
+
     brain_output = await safe_claude_call(
         user_state=user_state,
         sanitized_input=None,
         history=[],
-        instruction=(
-            "Ассессмент завершён. Проведи корреляционный анализ: найди главную 'утечку' "
-            "(самый низкий показатель), свяжи её с мотивацией пользователя и дай один "
-            "конкретный инсайт — почему именно этот показатель блокирует его цель. "
-            "Назови пользователя по имени. Будь прямым и конкретным, без воды. "
-            "Затем скажи, что первое утреннее задание придёт завтра утром."
-        ),
+        instruction=insight_instruction,
     )
 
     await message.answer(brain_output.message_to_user)

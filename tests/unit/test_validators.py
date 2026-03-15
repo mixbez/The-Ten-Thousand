@@ -1,7 +1,8 @@
 import pytest
 from pydantic import ValidationError
 from bot.validators import (
-    SanitizerOutput, ClaudeNudge, LongevityBrainOutput, NextInteraction, AssessmentRawAnswers
+    SanitizerOutput, ClaudeNudge, LongevityBrainOutput, NextInteraction,
+    InternalAnalysis, AssessmentRawAnswers
 )
 
 
@@ -44,14 +45,26 @@ class TestClaudeNudge:
 class TestLongevityBrainOutput:
     def test_valid_output(self):
         obj = LongevityBrainOutput(
-            message_to_user="Твой главный стрессор блокирует восстановление во сне.",
+            message_to_user="Постпрандиальная гипергликемия блокирует аутофагию.",
             next_interaction=NextInteraction(
-                type="NUDGE",
-                content="Сделай 5-минутную медитацию перед сном.",
-                schedule_tag="EVENING",
+                type="ACTION",
+                content="Сдай анализ: глюкоза + инсулин натощак.",
+                schedule_tag="MORNING",
+                medical_flag=True,
             ),
         )
-        assert obj.next_interaction.schedule_tag == "EVENING"
+        assert obj.next_interaction.medical_flag is True
+
+    def test_with_internal_analysis(self):
+        obj = LongevityBrainOutput(
+            internal_analysis=InternalAnalysis(
+                detected_risks=["Инсулинорезистентность"],
+                data_gaps=["HOMA-IR", "ApoB"],
+                logic_chain="HOMA-IR > 1.5 коррелирует с висцеральным жиром.",
+            ),
+            message_to_user="Нужен анализ.",
+        )
+        assert "HOMA-IR" in obj.internal_analysis.data_gaps
 
     def test_message_required(self):
         with pytest.raises(ValidationError):
@@ -59,11 +72,17 @@ class TestLongevityBrainOutput:
 
     def test_invalid_schedule_tag(self):
         with pytest.raises(ValidationError):
-            NextInteraction(type="NUDGE", content="Что-то сделай", schedule_tag="AFTERNOON")
+            NextInteraction(type="ACTION", content="Что-то сделай", schedule_tag="AFTERNOON")
 
     def test_no_next_interaction(self):
-        obj = LongevityBrainOutput(message_to_user="Отличная работа сегодня!")
+        obj = LongevityBrainOutput(message_to_user="Данные получены.")
         assert obj.next_interaction is None
+
+    def test_internal_analysis_defaults(self):
+        ia = InternalAnalysis()
+        assert ia.detected_risks == []
+        assert ia.data_gaps == []
+        assert ia.logic_chain == ""
 
 
 class TestAssessmentRawAnswers:

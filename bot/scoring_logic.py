@@ -180,3 +180,58 @@ def score_assessment(sleep_hours: float, nutrition_rating: int,
     legacy_weights = {"sleep": 0.30, "nutrition": 0.25, "movement": 0.25, "stress": 0.20}
     scores["overall"] = round(sum(scores[c] * w for c, w in legacy_weights.items()), 2)
     return scores
+
+
+# v1.3 domain names: sleep / metabolic / physical / mental_recovery
+DOMAIN_WEIGHTS_V13 = {
+    "sleep": 0.35,
+    "metabolic": 0.25,
+    "physical": 0.20,
+    "mental_recovery": 0.20,
+}
+
+
+def normalize_health_scores(scores: Dict) -> Dict:
+    """
+    Map any legacy score format to v1.3 domain names.
+    Idempotent — already-normalised scores are returned as-is.
+    """
+    if not scores:
+        return {}
+
+    # Already in v1.3 format
+    if "metabolic" in scores and "physical" in scores and "mental_recovery" in scores:
+        return scores
+
+    normalised: Dict = {}
+
+    # sleep is the same in all versions
+    normalised["sleep"] = scores.get("sleep", 0)
+
+    # metabolic ← nutrition (v1.1) or nutrition proxy
+    normalised["metabolic"] = scores.get("nutrition", scores.get("metabolic", 0))
+
+    # physical ← movement (v1.1)
+    normalised["physical"] = scores.get("movement", scores.get("physical", 0))
+
+    # mental_recovery ← average of stress + energy (v1.1), or stress alone
+    stress = scores.get("stress", 0)
+    energy = scores.get("energy", stress)
+    normalised["mental_recovery"] = round((stress + energy) / 2)
+
+    # preserve overall and biological_age_estimate if present
+    if "overall" in scores:
+        normalised["overall"] = scores["overall"]
+    if "biological_age_estimate" in scores:
+        normalised["biological_age_estimate"] = scores["biological_age_estimate"]
+
+    return normalised
+
+
+def calculate_overall_score_v13(domain_scores: Dict[str, int]) -> float:
+    """Weighted overall score using v1.3 domain weights (Sleep 35%, etc.)."""
+    required = set(DOMAIN_WEIGHTS_V13.keys())
+    missing = required - set(domain_scores.keys())
+    if missing:
+        raise ValueError(f"Missing domains: {missing}")
+    return round(sum(domain_scores[d] * w for d, w in DOMAIN_WEIGHTS_V13.items()), 2)
