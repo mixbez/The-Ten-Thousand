@@ -27,7 +27,7 @@ ASSESSMENT_QUESTIONS = {
     "ask_morning_energy": "Как чувствуешь себя через 30 минут после пробуждения? Оцени от 1 до 10.",
     "ask_brain_fog": "Как часто после обеда бывает туман в голове или резкий спад энергии? (Никогда / Иногда / Каждый день)",
     "ask_exercise": "Физическая активность: что делаешь, как часто, сколько по времени? (или 'ничего' — это тоже данные)",
-    "ask_sedentary": "Сколько часов в день проводишь сидя без перерыва?",
+    "ask_sedentary": "Сколько часов в день сидишь суммарно? И как часто встаёшь — примерно каждые сколько минут? (например: 9 часов, встаю каждые 45 мин)",
     "ask_blood_work": "Сдавал(-а) когда-нибудь расширенный анализ крови? Если помнишь — укажи цифры: глюкоза, холестерин, HbA1c, витамин D. Если нет — напиши 'нет'.",
     "ask_conditions": "Есть ли диагностированные заболевания или хронические состояния? (диабет, гипертония, тревожность, СДВГ и т.д. — или 'нет')",
     "ask_stress_detail": "Главный источник стресса прямо сейчас? И есть ли какой-то ритуал перед сном — или сразу в телефон?",
@@ -222,19 +222,25 @@ async def handle_sedentary(message: Message, state: FSMContext):
     sanitized = await safe_sanitize(message.text, ASSESSMENT_QUESTIONS["ask_sedentary"])
 
     if sanitized.result == "BLOCK":
-        await message.answer("Ответь числом — сколько часов в день сидишь? (например: 8)")
+        await message.answer("Ответь: сколько часов сидишь суммарно и как часто встаёшь? (например: 9 часов, каждые 45 мин)")
         return
 
     try:
         numbers = re.findall(r'\d+(?:[.,]\d+)?', sanitized.cleaned_text)
-        hours = float(numbers[0].replace(',', '.')) if numbers else -1
+        floats = [float(n.replace(',', '.')) for n in numbers]
+        # First number ≤ 24 = hours; remaining numbers = possible break interval in minutes
+        hours_candidates = [n for n in floats if n <= 24]
+        minutes_candidates = [n for n in floats if n > 24 or (n <= 24 and floats.index(n) > 0)]
+        hours = hours_candidates[0] if hours_candidates else -1
         if hours < 0 or hours > 24:
             raise ValueError
+        # Break interval: look for minute values (typically 15-120)
+        break_minutes = next((n for n in floats if 15 <= n <= 120 and n != hours), None)
     except (ValueError, IndexError):
         await message.answer("Введи число часов от 0 до 24.")
         return
 
-    await state.update_data(sedentary_hours=hours)
+    await state.update_data(sedentary_hours=hours, sedentary_break_minutes=break_minutes)
     await state.set_state(AssessmentStates.ask_blood_work)
     await message.answer(ASSESSMENT_QUESTIONS["ask_blood_work"])
 
@@ -298,6 +304,7 @@ async def handle_stress_detail(message: Message, state: FSMContext):
         morning_energy = data.get("morning_energy", 5)
         brain_fog = data.get("brain_fog", "Иногда")
         sedentary_hours = data.get("sedentary_hours", 6.0)
+        sedentary_break_minutes = data.get("sedentary_break_minutes")
         exercise_text = data.get("exercise", "")
 
         scores = score_deep_assessment(
@@ -308,6 +315,7 @@ async def handle_stress_detail(message: Message, state: FSMContext):
             sedentary_hours=sedentary_hours,
             stress_level=5,  # neutral; Claude assesses from stress_detail
             exercise_text=exercise_text,
+            sedentary_break_minutes=sedentary_break_minutes,
         )
 
         assessment_data = {
@@ -323,6 +331,7 @@ async def handle_stress_detail(message: Message, state: FSMContext):
             "brain_fog": brain_fog,
             "exercise": exercise_text,
             "sedentary_hours": sedentary_hours,
+            "sedentary_break_minutes": sedentary_break_minutes,
             "blood_work": data.get("blood_work", ""),
             "conditions": data.get("conditions", ""),
             "stress_detail": sanitized.cleaned_text,

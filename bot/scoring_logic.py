@@ -80,21 +80,39 @@ def score_brain_fog(frequency: str) -> int:
     return 55
 
 
-def score_sedentary(hours: float) -> int:
-    """Score movement proxy via sedentary hours (inverted — less sitting = better)."""
+def score_sedentary(hours: float, break_minutes: float = None) -> int:
+    """Score movement proxy via sedentary hours + break frequency.
+
+    Break frequency bonus: regular breaks (≤30 min) significantly reduce
+    metabolic risk from prolonged sitting (LPL suppression, glucose transport).
+    """
     if hours < 0:
         raise ValueError("Sedentary hours cannot be negative")
     if hours <= 2:
-        return 100
+        base = 100
     elif hours <= 4:
-        return 80
+        base = 80
     elif hours <= 6:
-        return 55
+        base = 55
     elif hours <= 8:
-        return 30
+        base = 30
     elif hours <= 10:
-        return 15
-    return 5
+        base = 15
+    else:
+        base = 5
+
+    if break_minutes is None:
+        return base
+
+    # Break frequency bonus (capped so total never exceeds 100)
+    if break_minutes <= 30:
+        bonus = 20
+    elif break_minutes <= 60:
+        bonus = 10
+    else:
+        bonus = 0
+
+    return min(100, base + bonus)
 
 
 def score_nutrition(rating: int) -> int:
@@ -205,9 +223,10 @@ def score_deep_assessment(
     sedentary_hours: float,
     stress_level: int,
     exercise_text: str = "",
+    sedentary_break_minutes: float = None,
 ) -> Dict[str, float]:
     """Full deep assessment scoring. Returns per-category and overall scores."""
-    sedentary_score = score_sedentary(sedentary_hours)
+    sedentary_score = score_sedentary(sedentary_hours, sedentary_break_minutes)
     if exercise_text:
         exercise_score = score_exercise(exercise_text)
         movement_score = round(exercise_score * 0.7 + sedentary_score * 0.3)
