@@ -275,8 +275,10 @@ def normalize_health_scores(scores: Dict) -> Dict:
     if not scores:
         return {}
 
-    # Already in v1.3 format
+    # Already in v1.3 format — but ensure medical is initialized
     if "metabolic" in scores and "physical" in scores and "mental_recovery" in scores:
+        if "medical" not in scores:
+            scores["medical"] = 20
         return scores
 
     normalised: Dict = {}
@@ -294,6 +296,10 @@ def normalize_health_scores(scores: Dict) -> Dict:
     stress = scores.get("stress", 0)
     energy = scores.get("energy", stress)
     normalised["mental_recovery"] = round((stress + energy) / 2)
+
+    # medical ← data completeness (HOMA-IR, ApoB, VO2 Max, HRV)
+    # preserve if present, else initialize to 20 (low starting completeness)
+    normalised["medical"] = scores.get("medical", 20)
 
     # preserve overall and biological_age_estimate if present
     if "overall" in scores:

@@ -34,7 +34,7 @@ class LongevityBrainOutput(BaseModel):
 # Backward-compat alias
 class ClaudeNudge(BaseModel):
     nudge_text: str = Field(min_length=10, max_length=500)
-    category: Literal["sleep", "nutrition", "movement", "stress", "energy"]
+    category: Literal["sleep", "nutrition", "movement", "stress", "energy", "medical"]
     delivery_time: Literal["MORNING", "EVENING"]
     difficulty: Literal["easy", "medium", "hard"] = "easy"
     score_delta: int = Field(default=0, ge=-10, le=10)

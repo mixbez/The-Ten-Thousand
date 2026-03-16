@@ -9,9 +9,10 @@ from bot.db.models import Interaction
 
 DOMAIN_FIELDS = {
     "sleep":     ("sleep_text", "sleep_variance", "morning_energy"),
-    "stress":    ("stress_detail",),
+    "mental_recovery": ("stress_detail",),
     "metabolic": ("blood_work", "substances", "brain_fog"),
     "physical":  ("exercise", "sedentary_hours"),
+    "medical":   ("blood_work", "conditions", "medications"),
 }
 
 
@@ -32,7 +33,7 @@ def get_today_domain(user) -> str:
                      if k in ("sleep", "metabolic", "physical", "mental_recovery")}
     if domain_scores:
         return min(domain_scores, key=domain_scores.get)
-    return "stress"
+    return "sleep"
 
 
 def build_context(
@@ -48,7 +49,7 @@ def build_context(
 
     parts = [
         f"scores: sleep={hs.get('sleep','?')} meta={hs.get('metabolic','?')} "
-        f"phys={hs.get('physical','?')} mr={hs.get('mental_recovery','?')} total={hs.get('overall','?')}",
+        f"phys={hs.get('physical','?')} mr={hs.get('mental_recovery','?')} medical={hs.get('medical','?')} total={hs.get('overall','?')}",
         f"u: {ad.get('age','?')}{sex_short} | style: {user_state.get('coaching_style','balanced')} | goal: {user_state.get('motivation','')}",
         f"rx: {ad.get('medications','—')} | dx: {ad.get('conditions','—')}",
         f"focus: {domain}",

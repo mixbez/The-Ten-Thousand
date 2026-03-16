@@ -17,7 +17,7 @@ SYSTEM_PROMPT = """Ты — Longevity Intelligence Core, Медицина 3.0 (�
 
 Стиль: радикальная прозрачность, биохимические термины (метаболическая гибкость, аутофагия, постпрандиальная сонливость), ноль воды, без аналогий, без лести.
 
-Приоритеты: 1) Data gaps → HOMA-IR, ApoB, VO2 Max 2) Риски: 4 всадника (метаболический синдром, ССЗ, онкология, нейродегенерация) 3) Performance: VO2 Max, мышечная масса.
+Приоритеты: 1) Риски: 4 всадника (метаболический синдром, ССЗ, онкология, нейродегенерация) 2) Performance: VO2 Max, мышечная масса 3) Recovery: сон, стресс, восстановление.
 
 Правила:
 — Один вопрос за раз. Субъективный ответ → перекрести с физиологией (Second-order thinking).
@@ -28,6 +28,7 @@ SYSTEM_PROMPT = """Ты — Longevity Intelligence Core, Медицина 3.0 (�
 — focus_domain в контексте — основной домен сегодня. Работай с ним, если нет критических data gaps.
 
 Веса: sleep 35%, metabolic 25%, physical 20%, mental_recovery 20%.
+medical-type nudges: когда есть data gaps (HOMA-IR, ApoB, VO2 Max, HRV отсутствуют), изредка (раз в 3-5 дней) генерируй запрос анализа вместо обычного совета. Но не зацикливайся на анализах — пользователь должен получать полезные советы по основным доменам, пока собирает данные.
 
 ФОРМАТ (строгий JSON, только русский, без markdown вне JSON):
 {"internal_analysis":{"detected_risks":[],"data_gaps":[],"logic_chain":""},"updated_scores":{"biological_age_estimate":null,"domain_scores":{"sleep":0,"metabolic":0,"physical":0,"mental_recovery":0}},"message_to_user":"","next_interaction":{"type":"ACTION","content":"","schedule_tag":"MORNING","medical_flag":false}}
@@ -159,7 +160,7 @@ user_input: {sanitized_input or '(no input — proactive delivery)'}"""
 
     response = await client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1200,
+        max_tokens=1600,
         system=SYSTEM_PROMPT,
         messages=messages,
     )
@@ -191,7 +192,7 @@ async def call_claude_with_context(context_str: str, history: list) -> Longevity
     messages = history[-6:] + [{"role": "user", "content": context_str}]
     response = await client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1200,
+        max_tokens=1600,
         system=SYSTEM_PROMPT,
         messages=messages,
     )
@@ -224,9 +225,9 @@ async def generate_nudge_plan(health_scores: Dict, assessment_data: Dict) -> lis
 
     prompt = (
         f"Составь список из ровно 30 доменов для ежедневных nudge.\n"
-        f"Домены только из: sleep, metabolic, physical, stress.\n"
+        f"Домены только из: sleep, metabolic, physical, mental_recovery.\n"
         f"Правила: самый слабый домен встречается чаще; не более 3 подряд одинаковых; "
-        f"stress приоритетен при депрессии/тревожности или высоком субъективном стрессе.\n"
+        f"mental_recovery приоритетен при депрессии/тревожности или высоком субъективном стрессе.\n"
         f"scores={scores_str}\nconditions={conditions}\nrx={medications}\nstress={stress_detail}\n"
         f"Верни ТОЛЬКО валидный JSON массив из 30 строк. Без комментариев."
     )
@@ -244,10 +245,10 @@ async def generate_nudge_plan(health_scores: Dict, assessment_data: Dict) -> lis
                 raw = raw[4:]
         plan = json.loads(raw.strip())
         # Validate — ensure all values are valid domains
-        valid = {"sleep", "metabolic", "physical", "stress"}
-        plan = [d if d in valid else "stress" for d in plan]
+        valid = {"sleep", "metabolic", "physical", "mental_recovery"}
+        plan = [d if d in valid else "mental_recovery" for d in plan]
         return plan[:30]
     except Exception as e:
         logger.error(f"generate_nudge_plan failed: {e}. Using default cycle.")
         # Fallback: sensible default cycle
-        return (["stress", "sleep", "stress", "metabolic", "physical", "sleep"] * 5)[:30]
+        return (["mental_recovery", "sleep", "mental_recovery", "metabolic", "physical", "sleep"] * 5)[:30]
