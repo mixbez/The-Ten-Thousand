@@ -184,6 +184,13 @@ async def cmd_get_info(message: Message):
     lines.append(f"Анализы крови: {ad.get('blood_work') or '—'}")
     lines.append(f"Состояния/диагнозы: {ad.get('conditions') or '—'}")
 
+    # Health data log (collected via bot)
+    health_log = ad.get('health_data_log', [])
+    if health_log:
+        lines.append(f"\n*— Данные от тебя —*")
+        for entry in health_log[-5:]:  # Show last 5 entries
+            lines.append(f"• {entry}")
+
     # Scores
     if hs:
         lines.append("\n*— Баллы здоровья —*")

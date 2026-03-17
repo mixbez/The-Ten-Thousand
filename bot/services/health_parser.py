@@ -1,6 +1,6 @@
 """
-Health data parser — extracts structured metrics from free-form user text via Groq.
-Does NOT use Claude (cost optimization).
+Health data parser — classifies if text is health-related, then extracts key info.
+Uses Groq to decide: is this health data? If yes, condense it.
 """
 import json
 import logging
@@ -13,69 +13,58 @@ logger = logging.getLogger(__name__)
 
 client = AsyncGroq(api_key=settings.groq_api_key)
 
-# Map Groq-extracted keys to assessment_data field names
-METRIC_KEY_MAP = {
-    "vo2_max": "vo2_max",
-    "vo2": "vo2_max",
-    "homa_ir": "homa_ir",
-    "homa": "homa_ir",
-    "apob": "apob",
-    "hba1c": "hba1c",
-    "a1c": "hba1c",
-    "hrv": "hrv",
-    "rmssd": "hrv",
-    "cooper_distance_km": "cooper_test_km",
-    "cooper": "cooper_test_km",
-    "glucose_fasting": "glucose_fasting",
-    "glucose": "glucose_fasting",
-    "insulin_fasting": "insulin_fasting",
-    "insulin": "insulin_fasting",
-    "blood_pressure": "blood_pressure",
-    "bp": "blood_pressure",
-    "sleep_hours": "sleep_hours",
-    "weight_kg": "weight_kg",
-    "weight": "weight_kg",
-}
-
 
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(min=1, max=5))
 async def parse_health_data(user_text: str) -> HealthParserOutput:
-    """Extract structured health metrics from free-form user text via Groq."""
-    prompt = f"""Ты — парсер медицинских данных. Извлеки из текста пользователя числовые данные о здоровье.
+    """
+    Classify if text contains health/medical data.
+    If yes: condense to key info. If no: return found=false.
+    """
+    prompt = f"""Ты — классификатор медицинских данных.
 
-Ищи эти метрики (только если упомянуты):
-- vo2_max: число в мл/кг/мин
-- homa_ir: число
-- apob: число в мг/дл или ммоль/л
-- hba1c: число в %
-- hrv: число в мс
-- glucose_fasting: число в ммоль/л или мг/дл
-- insulin_fasting: число в мкМЕ/мл
-- blood_pressure: строка типа "120/80"
-- cooper_distance_km: число (дистанция за 12 минут в км)
-- weight_kg: число в кг
-- sleep_hours: число в часах
+Прочитай текст пользователя и ответь ТОЛЬКО JSON:
+1. Это медицинские/здоровейские данные? (анализы, вес, сон, тесты, давление, упражнения, и т.д.)
+2. Если ДА → верни condensed_text: сокращённая версия текста с только значимым (без лишних слов)
+3. Если НЕТ → верни пусто
 
-Если нашёл метрики — верни JSON:
-{{"found": true, "metrics": {{"metric_name": value, "unit": "...", ...}}, "summary_line": "VO2 Max = 48 мл/кг/мин"}}
+Примеры ДА:
+- "мой вес 62 килограмма" → condensed: "вес: 62 кг"
+- "сдал тест купера - пробежал 2.5 км за 12 минут" → condensed: "Cooper test: 2.5 км"
+- "давление 120 на 80" → condensed: "давление: 120/80"
+- "сегодня спал 7.5 часов" → condensed: "сон: 7.5 ч"
 
-Если НЕ нашёл — верни JSON:
-{{"found": false, "metrics": {{}}, "summary_line": ""}}
+Примеры НЕТ:
+- "сегодня неплохой день" → не медицинское
+- "как дела?" → не медицинское
+- "завтра выходной" → не медицинское
 
-Верни ТОЛЬКО валидный JSON. Никаких комментариев.
+Текст пользователя: "{user_text}"
 
-Текст: "{user_text}"
+Верни JSON:
+{{"found": true, "condensed": "вес: 62 кг"}}
+или
+{{"found": false, "condensed": ""}}
+
+ТОЛЬКО JSON без комментариев.
 """
 
     response = await client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,
-        max_tokens=200,
+        max_tokens=150,
     )
     raw = response.choices[0].message.content.strip()
     data = json.loads(raw)
-    return HealthParserOutput(**data)
+    
+    if data.get("found"):
+        return HealthParserOutput(
+            found=True,
+            metrics={"health_data": data.get("condensed", "")},
+            summary_line=data.get("condensed", "")
+        )
+    else:
+        return HealthParserOutput(found=False)
 
 
 async def safe_parse_health_data(user_text: str) -> HealthParserOutput:
@@ -88,9 +77,13 @@ async def safe_parse_health_data(user_text: str) -> HealthParserOutput:
 
 
 def merge_metrics_into_assessment(existing: dict, metrics: dict) -> dict:
-    """Incrementally merge parsed metrics into assessment_data."""
+    """Store condensed health data in assessment_data under 'health_data_log'."""
     updated = dict(existing)
-    for raw_key, value in metrics.items():
-        canonical = METRIC_KEY_MAP.get(raw_key.lower(), raw_key.lower())
-        updated[canonical] = value
+    if "health_data" in metrics:
+        # Store condensed text in health_data_log list
+        log = updated.get("health_data_log", [])
+        if not isinstance(log, list):
+            log = []
+        log.append(metrics["health_data"])
+        updated["health_data_log"] = log
     return updated

@@ -6,7 +6,7 @@ import uuid
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StateFilter
+from aiogram.filters import StateFilter
 from sqlalchemy import select
 from bot.db.database import async_session_maker
 from bot.db.models import User
@@ -111,8 +111,10 @@ async def _try_parse_and_store_health_data(message: Message) -> None:
 async def handle_health_data_after_nudge(message: Message, state: FSMContext):
     """
     Handle health data input after user completes a medical nudge.
+    Same logic as free-text: classify → condense → store or tell user it's not health data.
     """
     result = await safe_parse_health_data(message.text)
+
     if result.found:
         # Store in database
         async with async_session_maker() as session:
@@ -125,9 +127,9 @@ async def handle_health_data_after_nudge(message: Message, state: FSMContext):
                 user.assessment_data = merge_metrics_into_assessment(existing, result.metrics)
                 await session.commit()
 
-        await message.answer(f"Записали: {result.summary_line}")
+        await message.answer(f"✅ Записали: {result.summary_line}")
     else:
-        await message.answer("Не распознал данные. Попробуй: 'HOMA-IR 1.8' или 'VO2 max 48'.")
+        await message.answer("Это не похоже на медицинские данные. Напиши например: 'вес 62 кг' или 'давление 120/80'.")
 
     await state.clear()
 
@@ -159,22 +161,29 @@ async def handle_free_text_no_state(message: Message):
 
 async def _try_parse_and_store_health_data(message: Message) -> None:
     """
-    Shared helper: attempt to parse health metrics from free-text message.
-    Silent ignore if nothing found. Saves to DB if metrics detected.
+    Shared helper: classify if text is health data, condense it, store it.
+    Responds to user: either "Записали" or "это не медицинские данные".
     """
+    logger.info(f"Classifying: {message.text[:100]}")
     result = await safe_parse_health_data(message.text)
-    if not result.found:
-        return  # silent ignore
 
+    if not result.found:
+        # Not health data — tell user
+        await message.answer("Это не медицинские данные. Могу записать: вес, давление, анализы, сон, упражнения и т.д.")
+        return
+
+    # Found health data — store it
     async with async_session_maker() as session:
         user = await session.execute(
             select(User).where(User.telegram_id == str(message.from_user.id))
         )
         user = user.scalar_one_or_none()
         if not user:
+            logger.warning(f"User not found for telegram_id {message.from_user.id}")
             return
         existing = user.assessment_data or {}
         user.assessment_data = merge_metrics_into_assessment(existing, result.metrics)
         await session.commit()
+        logger.info(f"Stored health data: {result.summary_line}")
 
-    await message.answer(f"Записали: {result.summary_line}")
+    await message.answer(f"✅ Записали: {result.summary_line}")
