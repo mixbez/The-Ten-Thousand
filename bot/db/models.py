@@ -49,6 +49,7 @@ class Interaction(Base):
     delivery_time = Column(String(10), nullable=True)  # MORNING or EVENING
     scheduled_time = Column(DateTime, nullable=True)
     responded_at = Column(DateTime, nullable=True)
+    is_medical_request = Column(Boolean, default=False, nullable=False, server_default="false")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="interactions")

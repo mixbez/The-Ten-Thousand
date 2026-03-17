@@ -126,6 +126,9 @@ async def send_morning_nudge(user_id: str, bot) -> None:
             nudge_text=brain_output.message_to_user,
             category=domain,
             delivery_time="MORNING",
+            is_medical_request=bool(
+                brain_output.next_interaction and brain_output.next_interaction.medical_flag
+            ),
         )
         session.add(interaction)
         await session.commit()
@@ -191,6 +194,9 @@ async def send_evening_reflection(user_id: str, bot) -> None:
             nudge_text=brain_output.message_to_user,
             category=domain,
             delivery_time="EVENING",
+            is_medical_request=bool(
+                brain_output.next_interaction and brain_output.next_interaction.medical_flag
+            ),
         )
         session.add(interaction)
         await session.commit()

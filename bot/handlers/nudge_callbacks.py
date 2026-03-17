@@ -7,9 +7,11 @@ from datetime import datetime
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 from bot.db.database import async_session_maker
 from bot.db.models import Interaction
+from bot.fsm.states import DailyLoopStates
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -23,7 +25,7 @@ def nudge_keyboard(interaction_id: str) -> InlineKeyboardMarkup:
 
 
 @router.callback_query(F.data.startswith("nudge:"))
-async def handle_nudge_callback(callback: CallbackQuery):
+async def handle_nudge_callback(callback: CallbackQuery, state: FSMContext):
     parts = callback.data.split(":")
     if len(parts) != 3:
         await callback.answer("Неверный формат.")
@@ -45,6 +47,20 @@ async def handle_nudge_callback(callback: CallbackQuery):
             interaction.responded_at = datetime.utcnow()
             interaction.response_text = "✅ Выполнено" if action == "done" else "❌ Пропущено"
             await session.commit()
+
+            # If action is "done" and interaction is a medical request, ask for health data
+            if action == "done" and interaction.is_medical_request:
+                reply = "Фиксирую ✅"
+                await callback.answer(reply)
+                await callback.message.answer(
+                    "Отлично! Пришли результат теста — я внесу в профиль."
+                )
+                await state.set_state(DailyLoopStates.awaiting_health_data)
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=None)
+                except Exception:
+                    pass
+                return
         except Exception as e:
             logger.error(f"nudge callback error: {e}")
             await callback.answer("Ошибка.")

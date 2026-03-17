@@ -27,6 +27,7 @@ class DailyLoopStates(StatesGroup):
     morning_nudge_sent = State()
     awaiting_evening_reflection = State()
     awaiting_nudge_feedback = State()
+    awaiting_health_data = State()
 
 
 class MonthlyAuditStates(StatesGroup):

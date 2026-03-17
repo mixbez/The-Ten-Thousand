@@ -1,0 +1,2 @@
+ALTER TABLE interactions
+  ADD COLUMN IF NOT EXISTS is_medical_request BOOLEAN DEFAULT FALSE NOT NULL;

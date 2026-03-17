@@ -45,3 +45,9 @@ class AssessmentRawAnswers(BaseModel):
     nutrition_rating: int = Field(ge=1, le=10)
     movement_minutes: int = Field(ge=0, le=1440)
     stress_level: int = Field(ge=0, le=10)
+
+
+class HealthParserOutput(BaseModel):
+    found: bool
+    metrics: dict = Field(default_factory=dict)
+    summary_line: str = ""
