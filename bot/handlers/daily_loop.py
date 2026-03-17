@@ -83,13 +83,20 @@ async def handle_reflection_response(message: Message, state: FSMContext):
     await message.answer(brain_output.message_to_user)
 
 
-async def _try_parse_and_store_health_data(message: Message) -> None:
+async def _try_parse_and_store_health_data(message: Message, state_context: str = "free") -> None:
     """
     Shared helper: try to parse health data from message text and store it in assessment_data.
+    state_context: "awaiting_health" = after medical nudge, "free" = free-text input
     """
     result = await safe_parse_health_data(message.text)
+
     if not result.found:
-        return  # silently ignore if no health data found
+        if state_context == "awaiting_health":
+            await message.answer("Это не похоже на медицинские данные. Напиши например: 'вес 62 кг' или 'давление 120/80'.")
+        else:
+            # For free-text input, silently ignore or give hint
+            await message.answer("Это не медицинские данные. Могу записать: вес, давление, анализы, сон, упражнения и т.д.")
+        return
 
     async with async_session_maker() as session:
         user = await session.execute(
@@ -97,14 +104,16 @@ async def _try_parse_and_store_health_data(message: Message) -> None:
         )
         user = user.scalar_one_or_none()
         if not user:
+            logger.warning(f"User not found for telegram_id {message.from_user.id}")
             return
 
         # Merge metrics into assessment_data
         existing = user.assessment_data or {}
         user.assessment_data = merge_metrics_into_assessment(existing, result.metrics)
         await session.commit()
+        logger.info(f"Stored health data for user: {result.summary_line}")
 
-    await message.answer(f"Записали: {result.summary_line}")
+    await message.answer(f"✅ Записали: {result.summary_line}")
 
 
 @router.message(DailyLoopStates.awaiting_health_data)
@@ -113,24 +122,7 @@ async def handle_health_data_after_nudge(message: Message, state: FSMContext):
     Handle health data input after user completes a medical nudge.
     Same logic as free-text: classify → condense → store or tell user it's not health data.
     """
-    result = await safe_parse_health_data(message.text)
-
-    if result.found:
-        # Store in database
-        async with async_session_maker() as session:
-            user = await session.execute(
-                select(User).where(User.telegram_id == str(message.from_user.id))
-            )
-            user = user.scalar_one_or_none()
-            if user:
-                existing = user.assessment_data or {}
-                user.assessment_data = merge_metrics_into_assessment(existing, result.metrics)
-                await session.commit()
-
-        await message.answer(f"✅ Записали: {result.summary_line}")
-    else:
-        await message.answer("Это не похоже на медицинские данные. Напиши например: 'вес 62 кг' или 'давление 120/80'.")
-
+    await _try_parse_and_store_health_data(message, state_context="awaiting_health")
     await state.clear()
 
 
@@ -158,32 +150,3 @@ async def handle_free_text_no_state(message: Message):
             return  # silently ignore non-daily-loop users
 
     await _try_parse_and_store_health_data(message)
-
-async def _try_parse_and_store_health_data(message: Message) -> None:
-    """
-    Shared helper: classify if text is health data, condense it, store it.
-    Responds to user: either "Записали" or "это не медицинские данные".
-    """
-    logger.info(f"Classifying: {message.text[:100]}")
-    result = await safe_parse_health_data(message.text)
-
-    if not result.found:
-        # Not health data — tell user
-        await message.answer("Это не медицинские данные. Могу записать: вес, давление, анализы, сон, упражнения и т.д.")
-        return
-
-    # Found health data — store it
-    async with async_session_maker() as session:
-        user = await session.execute(
-            select(User).where(User.telegram_id == str(message.from_user.id))
-        )
-        user = user.scalar_one_or_none()
-        if not user:
-            logger.warning(f"User not found for telegram_id {message.from_user.id}")
-            return
-        existing = user.assessment_data or {}
-        user.assessment_data = merge_metrics_into_assessment(existing, result.metrics)
-        await session.commit()
-        logger.info(f"Stored health data: {result.summary_line}")
-
-    await message.answer(f"✅ Записали: {result.summary_line}")

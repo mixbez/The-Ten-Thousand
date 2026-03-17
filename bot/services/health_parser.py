@@ -81,9 +81,10 @@ def merge_metrics_into_assessment(existing: dict, metrics: dict) -> dict:
     updated = dict(existing)
     if "health_data" in metrics:
         # Store condensed text in health_data_log list
-        log = updated.get("health_data_log", [])
-        if not isinstance(log, list):
-            log = []
-        log.append(metrics["health_data"])
-        updated["health_data_log"] = log
+        # IMPORTANT: Create NEW list, not mutate existing (SQLAlchemy JSONB needs full reassignment)
+        existing_log = updated.get("health_data_log", [])
+        if not isinstance(existing_log, list):
+            existing_log = []
+        new_log = existing_log + [metrics["health_data"]]
+        updated["health_data_log"] = new_log
     return updated
